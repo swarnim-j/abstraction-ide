@@ -11,64 +11,39 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCustomEditor:abstraction-ide.codeView"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "customEditors": [
-      {
-        "viewType": "abstraction-ide.codeView",
-        "displayName": "Code with Pseudocode",
-        "selector": [
-          {
-            "filenamePattern": "*.{js,ts,py,java,cpp,c,h,hpp,cs,go,rs,swift}"
-          }
-        ],
-        "priority": "default"
-      }
-    ],
+    "languages": [{
+      "id": "pseudocode",
+      "aliases": ["Pseudocode"],
+      "extensions": [".pseudo"]
+    }],
     "commands": [
       {
-        "command": "abstraction-ide.toggleView",
-        "title": "Toggle Pseudocode View",
-        "category": "Abstraction IDE",
-        "icon": "$(eye)"
-      },
-      {
-        "command": "abstraction-ide.increaseLevel",
+        "command": "abstraction-ide.increaseAbstraction",
         "title": "Increase Abstraction Level",
         "category": "Abstraction IDE"
       },
       {
-        "command": "abstraction-ide.decreaseLevel",
+        "command": "abstraction-ide.decreaseAbstraction",
         "title": "Decrease Abstraction Level",
         "category": "Abstraction IDE"
       }
     ],
     "keybindings": [
       {
-        "command": "abstraction-ide.increaseLevel",
+        "command": "abstraction-ide.increaseAbstraction",
         "key": "alt+shift+=",
-        "mac": "alt+shift+=",
-        "when": "editorTextFocus"
+        "mac": "alt+shift+="
       },
       {
-        "command": "abstraction-ide.decreaseLevel",
+        "command": "abstraction-ide.decreaseAbstraction",
         "key": "alt+shift+-",
-        "mac": "alt+shift+-",
-        "when": "editorTextFocus"
+        "mac": "alt+shift+-"
       }
     ],
-    "menus": {
-      "editor/title": [
-        {
-          "command": "abstraction-ide.toggleView",
-          "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|h|hpp|cs|go|rs|swift)$/",
-          "group": "navigation"
-        }
-      ]
-    },
     "configuration": {
       "title": "Abstraction IDE",
       "properties": {
