@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AIManager } from './aiManager';
 import { TextProcessor } from '../utils/textProcessor';
 import { CodeChange } from '../types';
+import { DiffCalculator } from '../utils/diffCalculator';
 
 export class AbstractionManager {
     private aiManager: AIManager;
@@ -151,12 +152,52 @@ export class AbstractionManager {
         });
     }
 
-    async generateCode(pseudocode: string): Promise<string> {
+    async generateCode(newPseudocode: string, originalPseudocode?: string): Promise<string> {
         try {
+            // Get the original code
+            const originalCode = await vscode.workspace.openTextDocument(
+                this.toFileUri(vscode.window.activeTextEditor?.document.uri!)
+            ).then(doc => doc.getText());
+
+            // If we have original pseudocode, use diff-based generation
+            if (originalPseudocode) {
+                console.log('Using diff-based code generation');
+                
+                // Calculate pseudocode changes
+                const pseudocodeDiff = DiffCalculator.calculateUnifiedDiff(originalPseudocode, newPseudocode);
+                
+                // Generate the prompt with full context
+                const prompt = JSON.stringify({
+                    original_code: originalCode,
+                    original_pseudocode: originalPseudocode,
+                    pseudocode_diff: pseudocodeDiff.join('\n@@ ... @@\n'),
+                    new_pseudocode: newPseudocode
+                });
+
+                // Stream the code diff from the AI
+                let codeDiff = '';
+                for await (const chunk of this.aiManager.streamToCode(
+                    prompt,
+                    originalCode,
+                    pseudocodeDiff,
+                    'PSEUDOCODE_TO_CODE_DIFF_PROMPT'
+                )) {
+                    codeDiff += chunk;
+                }
+
+                // Apply the diff to get the new code
+                return DiffCalculator.applyUnifiedDiff(originalCode, codeDiff);
+            }
+            
+            // Fallback to full generation for new files
+            console.log('No original pseudocode, using full code generation');
             let code = '';
-            const originalCode = await vscode.workspace.openTextDocument(this.toFileUri(vscode.window.activeTextEditor?.document.uri!)).then(doc => doc.getText());
-            const changes: CodeChange[] = [{ type: 'modify', content: pseudocode }];
-            for await (const chunk of this.aiManager.streamToCode(pseudocode, originalCode, changes)) {
+            for await (const chunk of this.aiManager.streamToCode(
+                newPseudocode,
+                originalCode,
+                [],
+                'CODE_SYSTEM_PROMPT'
+            )) {
                 code += chunk;
             }
             return TextProcessor.cleanCodeResponse(code);

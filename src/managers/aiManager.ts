@@ -1,101 +1,46 @@
-import OpenAI from 'openai';
-import * as vscode from 'vscode';
-import { CodeChange } from '../types/index';
+import { LLMProvider, LLMFactory, Message, StreamingResponse } from './llm/LLMProvider';
 import {
-    OPENAI_MODEL,
-    CONFIG_SECTION,
-    CONFIG_API_KEY,
     PSEUDOCODE_SYSTEM_PROMPT,
     CODE_SYSTEM_PROMPT,
+    PSEUDOCODE_TO_CODE_DIFF_PROMPT,
     PSEUDOCODE_UPDATE_SYSTEM_PROMPT
-} from '../constants';
+} from '../constants/prompts';
 
 export class AIManager {
-    private client: OpenAI | null = null;
+    private provider: LLMProvider | null = null;
+    private initialized = false;
 
     async initialize(): Promise<void> {
-        const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-        const apiKey = config.get<string>(CONFIG_API_KEY);
-        
-        if (!apiKey) {
-            const response = await vscode.window.showInformationMessage(
-                'API key is required to use Abstraction IDE. Please enter a valid OpenAI API key starting with "sk-".',
-                'Enter API Key'
-            );
-            
-            if (response === 'Enter API Key') {
-                const key = await vscode.window.showInputBox({
-                    prompt: 'Enter your OpenAI API key (should start with "sk-")',
-                    password: true,
-                    validateInput: (value) => {
-                        if (!value) {
-                            return 'API key is required';
-                        }
-                        if (!value.startsWith('sk-')) {
-                            return 'API key should start with "sk-"';
-                        }
-                        return null;
-                    }
-                });
-                
-                if (key) {
-                    try {
-                        console.log('Testing API key...');
-                        // Test the API key before saving
-                        const testClient = new OpenAI({ apiKey: key });
-                        await testClient.chat.completions.create({
-                            model: OPENAI_MODEL,
-                            messages: [{ role: 'user', content: 'test' }],
-                            max_tokens: 1
-                        });
-                        
-                        // If we get here, the key is valid
-                        await config.update(CONFIG_API_KEY, key, vscode.ConfigurationTarget.Global);
-                        this.client = testClient;
-                        vscode.window.showInformationMessage('API key successfully validated and saved.');
-                        console.log('API key validated and saved');
-                    } catch (error) {
-                        console.error('API key validation failed:', error);
-                        vscode.window.showErrorMessage(`Invalid API key: ${error instanceof Error ? error.message : String(error)}`);
-                        this.client = null;
-                        throw error;
-                    }
-                }
-            }
-        } else {
-            try {
-                console.log('Using existing API key');
-                this.client = new OpenAI({ apiKey });
-                // Validate the existing key
-                await this.client.chat.completions.create({
-                    model: OPENAI_MODEL,
-                    messages: [{ role: 'user', content: 'test' }],
-                    max_tokens: 1
-                });
-                console.log('Existing API key validated');
-            } catch (error) {
-                console.error('Existing API key validation failed:', error);
-                vscode.window.showErrorMessage(`Invalid saved API key: ${error instanceof Error ? error.message : String(error)}. Please enter a new key.`);
-                this.client = null;
-                // Clear the invalid key
-                await config.update(CONFIG_API_KEY, undefined, vscode.ConfigurationTarget.Global);
-                // Retry initialization
-                return this.initialize();
-            }
+        if (this.initialized) {
+            console.log('AIManager already initialized');
+            return;
+        }
+
+        try {
+            this.provider = await LLMFactory.createProvider();
+            await this.provider.initialize();
+            this.initialized = true;
+            console.log('AIManager initialized successfully');
+        } catch (error) {
+            console.error('Error initializing AIManager:', error);
+            throw error;
         }
     }
 
     isInitialized(): boolean {
-        return !!this.client;
+        return this.initialized;
     }
 
-    async *streamPseudocode(code: string): AsyncGenerator<string> {
-        if (!this.client) {
-            console.error('OpenAI client not initialized');
-            throw new Error('OpenAI client not initialized');
+    private async createStreamingCompletion(messages: Message[]): Promise<AsyncIterable<StreamingResponse>> {
+        if (!this.provider) {
+            throw new Error('AIManager not initialized');
         }
+        return this.provider.createStreamingCompletion(messages);
+    }
 
-        console.log('Starting pseudocode generation with OpenAI');
+    async *streamPseudocode(content: string, onProgress?: (content: string) => void): AsyncGenerator<string> {
+        console.log('streamPseudocode called with content length:', content.length);
+
         const messages = [
             {
                 role: 'system' as const,
@@ -103,58 +48,40 @@ export class AIManager {
             },
             {
                 role: 'user' as const,
-                content: `Please convert this code into pseudocode:\n\n${code}`
+                content: content
             }
         ];
 
         try {
             console.log('Creating streaming completion');
             const stream = await this.createStreamingCompletion(messages);
-            console.log('Stream created, starting to process chunks');
-            
+            let totalContent = '';
+
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content;
                 if (content) {
-                    console.log('Received chunk, length:', content.length);
+                    totalContent += content;
+                    console.log('Received content chunk, total length:', totalContent.length);
+                    if (onProgress) {
+                        onProgress(totalContent);
+                    }
                     yield content;
                 }
             }
-            console.log('Stream completed');
+
+            console.log('Stream completed, final content length:', totalContent.length);
+            
+            if (!totalContent.trim()) {
+                console.error('No content generated from API');
+                throw new Error('No content generated from API');
+            }
         } catch (error) {
             console.error('Error in streamPseudocode:', error);
             throw error;
         }
     }
 
-    private async createStreamingCompletion(messages: Array<{ role: 'system' | 'user' | 'assistant', content: string }>) {
-        if (!this.client) {
-            console.error('OpenAI client not initialized');
-            throw new Error('OpenAI client not initialized');
-        }
-
-        console.log('Creating streaming completion with messages:', {
-            messageCount: messages.length,
-            totalLength: messages.reduce((acc, msg) => acc + msg.content.length, 0)
-        });
-
-        try {
-            return await this.client.chat.completions.create({
-                model: OPENAI_MODEL,
-                messages,
-                temperature: 0.2,
-                stream: true
-            });
-        } catch (error) {
-            console.error('Error creating streaming completion:', error);
-            throw error;
-        }
-    }
-
-    async *streamPseudocodeUpdate(
-        newCode: string,
-        oldPseudocode: string,
-        changes: CodeChange[]
-    ): AsyncGenerator<string> {
+    async *streamPseudocodeUpdate(newCode: string, oldPseudocode: string, changes: any[] = []): AsyncGenerator<string> {
         const messages = [
             {
                 role: 'system' as const,
@@ -162,17 +89,24 @@ export class AIManager {
             },
             {
                 role: 'user' as const,
-                content: `Here is the current code:\n\n${newCode}\n\nHere is the current pseudocode:\n\n${oldPseudocode}\n\nHere are the changes made to the code:\n${JSON.stringify(changes, null, 2)}\n\nPlease update the pseudocode to reflect these changes while maintaining the same style and abstraction level.`
+                content: JSON.stringify({ original: oldPseudocode, new_code: newCode, changes })
             }
         ];
 
         try {
             const stream = await this.createStreamingCompletion(messages);
+            let totalContent = '';
+
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content;
                 if (content) {
+                    totalContent += content;
                     yield content;
                 }
+            }
+
+            if (!totalContent.trim()) {
+                throw new Error('No content generated from API');
             }
         } catch (error) {
             console.error('Error in streamPseudocodeUpdate:', error);
@@ -181,24 +115,31 @@ export class AIManager {
     }
 
     async *streamToCode(
-        pseudocode: string,
+        prompt: string,
         originalCode: string,
-        changes: CodeChange[]
+        changes: any[] = [],
+        systemPromptKey: 'CODE_SYSTEM_PROMPT' | 'PSEUDOCODE_TO_CODE_DIFF_PROMPT' = 'CODE_SYSTEM_PROMPT'
     ): AsyncGenerator<string> {
         console.log('streamToCode called with:', {
-            pseudocodeLength: pseudocode.length,
+            promptLength: prompt.length,
             originalCodeLength: originalCode.length,
-            changesCount: changes.length
+            changesCount: changes.length,
+            systemPromptKey
         });
+
+        const systemPrompts = {
+            'CODE_SYSTEM_PROMPT': CODE_SYSTEM_PROMPT,
+            'PSEUDOCODE_TO_CODE_DIFF_PROMPT': PSEUDOCODE_TO_CODE_DIFF_PROMPT
+        } as const;
 
         const messages = [
             {
                 role: 'system' as const,
-                content: CODE_SYSTEM_PROMPT
+                content: systemPrompts[systemPromptKey]
             },
             {
                 role: 'user' as const,
-                content: `Here is the original code:\n\n${originalCode}\n\nHere is the current pseudocode:\n\n${pseudocode}\n\nHere are the changes made to the pseudocode:\n${JSON.stringify(changes, null, 2)}\n\nPlease update the code to reflect these changes while maintaining the same style and structure.`
+                content: prompt
             }
         ];
 

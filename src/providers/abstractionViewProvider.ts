@@ -13,11 +13,12 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     private pendingChanges = new Map<string, string>();
     
     constructor(private abstractionManager: AbstractionManager) {
-        // Listen for document changes
-        vscode.workspace.onDidChangeTextDocument(async e => {
+        // Remove real-time document change listener
+        // Add save handler instead
+        vscode.workspace.onWillSaveTextDocument(async e => {
             if (e.document.uri.scheme === 'abstraction') {
-                console.log('Document changed:', e.document.uri.toString());
-                await this.handleDocumentChange(e.document);
+                console.log('Saving abstraction document:', e.document.uri.toString());
+                e.waitUntil(this.handlePseudocodeSave(e.document));
             }
         });
 
@@ -90,28 +91,17 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
         }
     }
 
-    private async handleDocumentChange(document: vscode.TextDocument): Promise<void> {
+    private async handlePseudocodeSave(document: vscode.TextDocument): Promise<void> {
         const fileUri = document.uri.with({ scheme: 'file' });
         const content = document.getText();
         
-        // If we're generating, just store the most recent change
-        if (this.generatingContent.get(document.uri.toString())) {
-            console.log('Storing most recent change while generation in progress');
-            this.pendingChanges.set(document.uri.toString(), content);
-            return;
-        }
-
         await this.withLock(fileUri.toString(), async () => {
-            // Use the most recent content, whether it's from the current change or pending
-            const finalContent = this.pendingChanges.get(document.uri.toString()) || content;
-            this.pendingChanges.delete(document.uri.toString());
-
             // Update cache
             const cached = codeMapManager.get(fileUri.toString());
             if (cached) {
                 codeMapManager.set(fileUri.toString(), {
                     ...cached,
-                    pseudocode: finalContent,
+                    pseudocode: content,
                     lastEditTime: Date.now(),
                     version: cached.version + 1
                 });
@@ -119,7 +109,8 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
             // Generate corresponding code changes
             try {
-                const newCode = await this.abstractionManager.generateCode(finalContent);
+                console.log('Generating code from saved pseudocode');
+                const newCode = await this.abstractionManager.generateCode(content);
                 const edit = new vscode.WorkspaceEdit();
                 edit.replace(
                     fileUri,
@@ -132,6 +123,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                     newCode
                 );
                 await vscode.workspace.applyEdit(edit);
+                console.log('Successfully updated code from pseudocode save');
             } catch (error) {
                 console.error('Error updating code:', error);
                 vscode.window.showErrorMessage(`Error updating code: ${error instanceof Error ? error.message : String(error)}`);
@@ -289,7 +281,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                 if (pendingContent) {
                     console.log('Processing pending changes after generation');
                     const doc = await vscode.workspace.openTextDocument(uri);
-                    await this.handleDocumentChange(doc);
+                    await this.handlePseudocodeSave(doc);
                 }
             });
         }

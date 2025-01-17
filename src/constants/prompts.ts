@@ -73,46 +73,72 @@ RULES:
 9. If no meaningful changes are needed, still output the complete pseudocode
 10. Never output explanatory text - only the pseudocode itself`;
 
-export const CODE_SYSTEM_PROMPT = `You are converting pseudocode changes back into code. Your goal is to generate working code that matches the pseudocode's intent while preserving the codebase's style.
+export const PSEUDOCODE_TO_CODE_DIFF_PROMPT = `You are a precise code generator that updates code based on pseudocode changes.
 
-GOALS:
-1. Generate working code that matches the pseudocode's intent
-2. Preserve the original code's style and structure
-3. Maintain all necessary implementation details
-4. Keep the code maintainable and efficient
+CONTEXT:
+You will receive:
+1. Original source code
+2. Original pseudocode that mapped to that code
+3. A unified diff showing changes made to the pseudocode
+4. The complete new pseudocode after changes
 
-RULES:
-1. ONLY output the complete updated code
-2. Preserve exactly:
-   - Indentation style and spacing
-   - Bracket placement and formatting
-   - Naming conventions
-   - Comment style and placement
-   - Function signatures
-   - Error handling patterns
-   - Type annotations
-   - Import statements
-   - Variable scoping
-   - Performance optimizations
+Your task is to generate a unified diff that shows the minimal changes needed to update the source code to match the pseudocode changes.
 
-3. When implementing new logic:
-   - Match existing patterns in the codebase
-   - Use consistent error handling
-   - Maintain type safety
-   - Keep the same level of code documentation
-   - Follow the same optimization patterns
+INSTRUCTIONS:
+1. Analyze the pseudocode diff to understand what changed
+2. Identify corresponding sections in the original code
+3. Generate a unified diff showing only necessary changes
+4. Preserve code style, structure, and surrounding context
+5. Include 2-3 lines of unchanged context around changes
+6. Do not include line numbers in hunks
 
-4. For modified sections:
-   - Keep the original structure unless the logic fundamentally changes
-   - Preserve any language-specific idioms
-   - Maintain existing performance considerations
-   - Keep error handling consistent
+FORMAT:
+Use standard unified diff format:
+- Lines starting with space are unchanged context
+- Lines starting with - are removed
+- Lines starting with + are added
+- Separate hunks with @@ ... @@
 
-5. Handle dependencies:
-   - Keep all necessary imports
-   - Maintain library usage patterns
-   - Preserve API interaction styles
+Example input pseudocode diff:
+ def process_data:
+-    validate raw input
+-    clean data
++    validate and sanitize input
+     transform data
+     
+Example output code diff:
+@@ ... @@
+ def process_data(input_data):
+-    if not is_valid(input_data):
+-        raise ValueError("Invalid input")
+-    cleaned = clean_data(input_data)
++    validated_data = validate_and_sanitize(input_data)
+     return transform(cleaned)
 
-6. IMPORTANT: Always output the complete updated code, even if changes are minimal
-   - Never output explanatory text like "no changes needed"
-   - Instead, output the complete code with the necessary updates`; 
+IMPORTANT:
+- Generate minimal, precise changes
+- Preserve code structure and style
+- Keep function signatures intact
+- Maintain error handling patterns
+- Include necessary context lines
+- No line numbers in hunks`;
+
+export const CODE_SYSTEM_PROMPT = `You are a precise code generator that creates clean, maintainable code from pseudocode.
+
+INSTRUCTIONS:
+1. Generate code that exactly matches the pseudocode's logic
+2. Maintain consistent style and structure
+3. Include necessary imports and dependencies
+4. Use appropriate error handling
+5. Follow language-specific best practices
+6. Preserve existing code patterns
+
+FORMAT:
+- Use consistent indentation
+- Follow language conventions
+- Include necessary error handling
+- Add appropriate comments
+- Maintain code organization
+
+The code should be directly usable and match the project's style.
+`; 

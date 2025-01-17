@@ -40,6 +40,11 @@
         "command": "abstraction-ide.showAbstraction",
         "title": "Show Abstraction View",
         "category": "Abstraction IDE"
+      },
+      {
+        "command": "abstractionIde.configureProvider",
+        "title": "Configure LLM Provider",
+        "category": "Abstraction IDE"
       }
     ],
     "keybindings": [
@@ -62,10 +67,33 @@
     "configuration": {
       "title": "Abstraction IDE",
       "properties": {
-        "abstractionIde.apiKey": {
+        "abstractionIde.llmProvider": {
           "type": "string",
-          "default": "",
-          "description": "API key for OpenAI"
+          "enum": ["openai", "anthropic", "mistral", "google"],
+          "default": "openai",
+          "description": "The LLM provider to use"
+        },
+        "abstractionIde.openai.apiKey": {
+          "type": "string",
+          "description": "OpenAI API key"
+        },
+        "abstractionIde.openai.model": {
+          "type": "string",
+          "enum": ["gpt-4o", "gpt-4o-mini"],
+          "default": "gpt-4o",
+          "description": "OpenAI model to use"
+        },
+        "abstractionIde.anthropic.apiKey": {
+          "type": "string",
+          "description": "Anthropic API key"
+        },
+        "abstractionIde.mistral.apiKey": {
+          "type": "string",
+          "description": "Mistral API key"
+        },
+        "abstractionIde.google.apiKey": {
+          "type": "string",
+          "description": "Google API key"
         }
       }
     }
