@@ -34,6 +34,30 @@
         "title": "Toggle Pseudocode View",
         "category": "Abstraction IDE",
         "icon": "$(eye)"
+      },
+      {
+        "command": "abstraction-ide.increaseLevel",
+        "title": "Increase Abstraction Level",
+        "category": "Abstraction IDE"
+      },
+      {
+        "command": "abstraction-ide.decreaseLevel",
+        "title": "Decrease Abstraction Level",
+        "category": "Abstraction IDE"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "abstraction-ide.increaseLevel",
+        "key": "alt+shift+=",
+        "mac": "alt+shift+=",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "abstraction-ide.decreaseLevel",
+        "key": "alt+shift+-",
+        "mac": "alt+shift+-",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {

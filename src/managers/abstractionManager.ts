@@ -213,44 +213,16 @@ export class AbstractionManager {
     }
 
     async syncAbstractions(): Promise<void> {
-        // If no active editor but we have lastModifiedUri, use that
         let editor = vscode.window.activeTextEditor;
-        let document: vscode.TextDocument;
-        
-        if (!editor && this.lastModifiedUri) {
-            const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(this.lastModifiedUri));
-            editor = await vscode.window.showTextDocument(doc);
-        }
-        
         if (!editor) {
             vscode.window.showErrorMessage('No active editor found');
             return;
         }
 
-        if (!this.aiManager.isInitialized()) {
-            await this.aiManager.initialize();
-            if (!this.aiManager.isInitialized()) return;
-        }
-
-        document = editor.document;
-        
-        // If we have a last modified file, make sure we're syncing from that file
-        if (this.lastModifiedUri && this.lastModifiedUri !== document.uri.toString()) {
-            // We're in the wrong file, switch to the modified one
-            const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(this.lastModifiedUri));
-            editor = await vscode.window.showTextDocument(doc);
-            document = editor.document;
-        }
-
+        const document = editor.document;
         const isPseudo = FileManager.isPseudocodeFile(document.uri);
         const currentContent = document.getText();
 
-        console.log('Syncing with:', {
-            currentFile: document.uri.toString(),
-            lastModified: this.lastModifiedUri,
-            isPseudo,
-            hasUnsynedChanges: this.hasUnsynedChanges
-        });
 
         try {
             if (isPseudo) {
@@ -495,5 +467,38 @@ export class AbstractionManager {
             this.hasUnsynedChanges = false;
             this.updateStatusBar();
         }
+    }
+
+    async changeAbstractionLevel(delta: number): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No active editor found');
+            return;
+        }
+
+        const document = editor.document;
+        const isPseudo = FileManager.isPseudocodeFile(document.uri);
+        
+        // Determine target level based on current state and delta
+        const currentLevel = isPseudo ? 1 : 0;
+        const targetLevel = currentLevel + delta;
+
+        // Validate target level
+        if (targetLevel < 0 || targetLevel > 1) {
+            return;
+        }
+
+        // If current and target levels are the same, force a refresh
+        if (currentLevel === targetLevel) {
+            // Reset state to force refresh
+            this.hasUnsynedChanges = true;
+            this.lastModifiedUri = undefined;
+        }
+
+        // Clear any existing state that might interfere
+        this.lastModifiedUri = undefined;
+
+        // Trigger sync to switch views
+        await this.syncAbstractions();
     }
 } 

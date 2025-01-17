@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AbstractionManager } from './managers/abstractionManager';
 import { CodeViewProvider } from './customEditor';
+import { TOGGLE_COMMAND } from './constants';
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Abstraction IDE extension is now active!');
@@ -50,6 +51,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 'abstraction-ide.codeView',
                 vscode.ViewColumn.Beside
             );
+        }),
+
+        vscode.commands.registerCommand('abstraction-ide.increaseLevel', () => {
+            abstractionManager.changeAbstractionLevel(1);
+        }),
+
+        vscode.commands.registerCommand('abstraction-ide.decreaseLevel', () => {
+            abstractionManager.changeAbstractionLevel(-1);
         })
     );
 }
