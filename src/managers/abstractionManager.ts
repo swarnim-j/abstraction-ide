@@ -88,13 +88,6 @@ export class AbstractionManager {
         const isAbstraction = uri.scheme === 'abstraction';
         const currentView = isAbstraction ? 'pseudocode' : 'code';
         
-        console.log('Changing abstraction level:', {
-            delta,
-            currentUri: uri.toString(),
-            isAbstraction,
-            currentView
-        });
-        
         // Determine target view based on current view and delta
         const targetView = delta > 0 ? 'pseudocode' : 'code';
         

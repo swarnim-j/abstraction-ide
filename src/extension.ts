@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AbstractionViewProvider } from './providers/abstractionViewProvider';
 import { AbstractionManager } from './managers/abstractionManager';
+import { codeMapManager } from './state/codeMap';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Abstraction IDE extension is now active!');
@@ -27,6 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the abstraction scheme
     const emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+    
     const virtualFs = {
         onDidChangeFile: emitter.event,
         watch: () => ({ dispose: () => {} }),
@@ -43,11 +45,25 @@ export function activate(context: vscode.ExtensionContext) {
             const content = await provider.provideTextDocumentContent(uri);
             return Buffer.from(content);
         },
-        writeFile: (uri: vscode.Uri, content: Uint8Array) => {
+        writeFile: async (uri: vscode.Uri, content: Uint8Array) => {
             console.log('Virtual FS: Writing file:', uri.toString());
-            provider.update();
-            const events: vscode.FileChangeEvent[] = [{ type: vscode.FileChangeType.Changed, uri }];
-            emitter.fire(events);
+            const fileUri = uri.with({ scheme: 'file' });
+            const newContent = content.toString();
+            
+            // Atomic cache update
+            const cached = codeMapManager.get(fileUri.toString());
+            if (cached) {
+                codeMapManager.set(fileUri.toString(), {
+                    ...cached,
+                    pseudocode: newContent,
+                    lastEditTime: Date.now(),
+                    version: cached.version + 1
+                });
+                provider.update();
+                emitter.fire([{ type: vscode.FileChangeType.Changed, uri }]);
+            } else {
+                console.log('No cache found for:', fileUri.toString());
+            }
         },
         delete: () => {},
         rename: () => {}

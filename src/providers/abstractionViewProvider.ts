@@ -10,6 +10,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     private chunkCount = new Map<string, number>();
     private generationLocks = new Map<string, Promise<void>>();
     private statusBarItem: vscode.StatusBarItem;
+    private pendingChanges = new Map<string, string>();
     
     constructor(private abstractionManager: AbstractionManager) {
         // Listen for document changes
@@ -91,21 +92,26 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
     private async handleDocumentChange(document: vscode.TextDocument): Promise<void> {
         const fileUri = document.uri.with({ scheme: 'file' });
+        const content = document.getText();
         
-        // Skip if we're currently generating content
+        // If we're generating, just store the most recent change
         if (this.generatingContent.get(document.uri.toString())) {
+            console.log('Storing most recent change while generation in progress');
+            this.pendingChanges.set(document.uri.toString(), content);
             return;
         }
 
         await this.withLock(fileUri.toString(), async () => {
-            const content = document.getText();
+            // Use the most recent content, whether it's from the current change or pending
+            const finalContent = this.pendingChanges.get(document.uri.toString()) || content;
+            this.pendingChanges.delete(document.uri.toString());
 
             // Update cache
             const cached = codeMapManager.get(fileUri.toString());
             if (cached) {
                 codeMapManager.set(fileUri.toString(), {
                     ...cached,
-                    pseudocode: content,
+                    pseudocode: finalContent,
                     lastEditTime: Date.now(),
                     version: cached.version + 1
                 });
@@ -113,7 +119,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
             // Generate corresponding code changes
             try {
-                const newCode = await this.abstractionManager.generateCode(content);
+                const newCode = await this.abstractionManager.generateCode(finalContent);
                 const edit = new vscode.WorkspaceEdit();
                 edit.replace(
                     fileUri,
@@ -245,6 +251,19 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
                 // Update final content and notify
                 this.contentBuffer.set(uri.toString(), pseudocode);
+                
+                // Auto-save the generated content
+                try {
+                    const edit = new vscode.WorkspaceEdit();
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    edit.replace(uri, new vscode.Range(0, 0, doc.lineCount, 0), pseudocode);
+                    await vscode.workspace.applyEdit(edit);
+                    await doc.save();
+                    console.log('Auto-saved generated content');
+                } catch (error) {
+                    console.error('Error auto-saving content:', error);
+                }
+
                 // Force an immediate update
                 setImmediate(() => this._onDidChange.fire(uri));
                 
@@ -261,9 +280,17 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
         } finally {
             console.log('Cleaning up after generation');
             // Don't clean up content buffer until after the last update is processed
-            setImmediate(() => {
+            setImmediate(async () => {
                 this.generatingContent.delete(uri.toString());
                 this.chunkCount.delete(uri.toString());
+
+                // Process any pending changes
+                const pendingContent = this.pendingChanges.get(uri.toString());
+                if (pendingContent) {
+                    console.log('Processing pending changes after generation');
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    await this.handleDocumentChange(doc);
+                }
             });
         }
     }
