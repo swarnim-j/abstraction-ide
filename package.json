@@ -1,0 +1,83 @@
+{
+  "name": "abstraction-ide",
+  "displayName": "Abstraction IDE",
+  "description": "View and edit code at different levels of abstraction",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCustomEditor:abstraction-ide.codeView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "abstraction-ide.codeView",
+        "displayName": "Code with Pseudocode",
+        "selector": [
+          {
+            "filenamePattern": "*.{js,ts,py,java,cpp,c,h,hpp,cs,go,rs,swift}"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "abstraction-ide.toggleView",
+        "title": "Toggle Pseudocode View",
+        "category": "Abstraction IDE",
+        "icon": "$(eye)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "abstraction-ide.toggleView",
+          "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|h|hpp|cs|go|rs|swift)$/",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Abstraction IDE",
+      "properties": {
+        "abstractionIde.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for OpenAI"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "@vscode/test-electron": "^2.3.8",
+    "eslint": "^9.18.0",
+    "typescript": "^5.x"
+  },
+  "dependencies": {
+    "@types/diff": "^7.0.0",
+    "@types/diff-match-patch": "^1.0.36",
+    "diff": "^7.0.0",
+    "diff-match-patch": "^1.0.5",
+    "openai": "^4.24.1"
+  }
+}

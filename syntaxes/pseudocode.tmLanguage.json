@@ -1,0 +1,44 @@
+{
+    "name": "Pseudocode",
+    "scopeName": "source.pseudocode",
+    "fileTypes": ["pseudo"],
+    "patterns": [
+        {
+            "name": "keyword.control.pseudocode",
+            "match": "\\b(CLASS|FUNCTION|SET|INITIALIZE|COMPUTE|RETURN|IF|THEN|ELSE|ENDIF|WHILE|DO|ENDWHILE|FOR|TO|ENDFOR|ASSERT)\\b"
+        },
+        {
+            "name": "keyword.operator.pseudocode",
+            "match": "\\b(AND|OR|NOT|IS|IN|TO|MOD)\\b|[=<>≤≥≠←→×÷±∈∑∀∃√*+\\-/]"
+        },
+        {
+            "name": "comment.line.double-slash.pseudocode",
+            "match": "#.*$"
+        },
+        {
+            "name": "string.quoted.double.pseudocode",
+            "begin": "\"",
+            "end": "\""
+        },
+        {
+            "name": "constant.numeric.pseudocode",
+            "match": "\\b\\d+(\\.\\d+)?\\b"
+        },
+        {
+            "name": "support.function.pseudocode",
+            "match": "\\b(softmax|transpose|sqrt)\\b"
+        },
+        {
+            "name": "variable.parameter.pseudocode",
+            "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        },
+        {
+            "name": "constant.language.pseudocode",
+            "match": "\\b[A-Z][A-Z0-9_]*\\b"
+        },
+        {
+            "name": "markup.bold.pseudocode",
+            "match": "\\b(Query|Key|Value)\\s+projection\\b"
+        }
+    ]
+} 
