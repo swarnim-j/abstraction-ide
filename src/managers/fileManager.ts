@@ -12,8 +12,13 @@ export class FileManager {
     }
 
     static async writeFile(uri: vscode.Uri, content: string): Promise<void> {
-        const writeData = Buffer.from(content, 'utf8');
-        await vscode.workspace.fs.writeFile(uri, writeData);
+        try {
+            const writeData = Buffer.from(content, 'utf8');
+            await vscode.workspace.fs.writeFile(uri, writeData);
+        } catch (error) {
+            console.error('Error writing file:', uri.toString(), error);
+            throw error;
+        }
     }
 
     static async readFile(uri: vscode.Uri): Promise<string> {

@@ -9,7 +9,42 @@ export class AbstractionManager {
 
     constructor(context: vscode.ExtensionContext) {
         this.aiManager = new AIManager();
-        this.aiManager.initialize();
+        
+        // Register status bar item to show initialization status
+        const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+        statusBarItem.text = "$(sync~spin) Initializing Abstraction IDE...";
+        statusBarItem.show();
+        
+        // Single initialization with proper error handling
+        this.aiManager.initialize().then(() => {
+            console.log('AI Manager initialized successfully');
+            statusBarItem.text = "$(check) Abstraction IDE Ready";
+            setTimeout(() => statusBarItem.hide(), 3000);
+        }).catch(error => {
+            console.error('Failed to initialize AIManager:', error);
+            statusBarItem.text = "$(error) Abstraction IDE Failed";
+            vscode.window.showErrorMessage('Failed to initialize AI Manager. Please check your API key.');
+            setTimeout(() => statusBarItem.hide(), 3000);
+        });
+        
+        context.subscriptions.push(statusBarItem);
+    }
+
+    async ensureInitialized(): Promise<void> {
+        if (!this.aiManager.isInitialized()) {
+            console.log('AI Manager not initialized, initializing now...');
+            await this.aiManager.initialize();
+            console.log('AI Manager initialization completed');
+        } else {
+            console.log('AI Manager already initialized');
+        }
+    }
+
+    private async withInitialization<T>(operation: () => Promise<T>): Promise<T> {
+        console.log('Starting operation with initialization check');
+        await this.ensureInitialized();
+        console.log('Initialization check completed, proceeding with operation');
+        return operation();
     }
 
     dispose(): void {
@@ -17,11 +52,29 @@ export class AbstractionManager {
     }
 
     private toAbstractionUri(uri: vscode.Uri): vscode.Uri {
-        return uri.with({ scheme: 'abstraction' });
+        if (!uri) {
+            console.error('Invalid URI provided to toAbstractionUri');
+            throw new Error('Invalid URI provided');
+        }
+        console.log('Converting to abstraction URI:', uri.toString());
+        const abstractionUri = uri.with({ scheme: 'abstraction' });
+        console.log('Converted to:', abstractionUri.toString());
+        return abstractionUri;
     }
 
     private toFileUri(uri: vscode.Uri): vscode.Uri {
-        return uri.with({ scheme: 'file' });
+        if (!uri) {
+            console.error('Invalid URI provided to toFileUri');
+            throw new Error('Invalid URI provided');
+        }
+        if (uri.scheme !== 'file' && uri.scheme !== 'abstraction') {
+            console.error('Invalid URI scheme:', uri.scheme);
+            throw new Error(`Invalid URI scheme: ${uri.scheme}`);
+        }
+        console.log('Converting to file URI:', uri.toString());
+        const fileUri = uri.with({ scheme: 'file' });
+        console.log('Converted to:', fileUri.toString());
+        return fileUri;
     }
 
     async changeAbstractionLevel(delta: number): Promise<void> {
@@ -35,11 +88,19 @@ export class AbstractionManager {
         const isAbstraction = uri.scheme === 'abstraction';
         const currentView = isAbstraction ? 'pseudocode' : 'code';
         
+        console.log('Changing abstraction level:', {
+            delta,
+            currentUri: uri.toString(),
+            isAbstraction,
+            currentView
+        });
+        
         // Determine target view based on current view and delta
         const targetView = delta > 0 ? 'pseudocode' : 'code';
         
         // If already in target view, do nothing
         if (currentView === targetView) {
+            console.log('Already in target view:', targetView);
             return;
         }
 
@@ -47,6 +108,7 @@ export class AbstractionManager {
             if (targetView === 'pseudocode') {
                 // Switch to pseudocode view
                 const abstractionUri = this.toAbstractionUri(isAbstraction ? this.toFileUri(uri) : uri);
+                console.log('Opening pseudocode view:', abstractionUri.toString());
                 
                 // Create and show the document immediately
                 const doc = await vscode.workspace.openTextDocument(abstractionUri);
@@ -57,6 +119,7 @@ export class AbstractionManager {
             } else {
                 // Switch back to code view
                 const fileUri = this.toFileUri(uri);
+                console.log('Opening code view:', fileUri.toString());
                 const doc = await vscode.workspace.openTextDocument(fileUri);
                 await vscode.window.showTextDocument(doc, { 
                     preview: false,
@@ -70,27 +133,29 @@ export class AbstractionManager {
     }
 
     async generatePseudocode(content: string, onProgress: (content: string) => void): Promise<string> {
-        console.log('Starting pseudocode generation');
-        let pseudocode = '';
-        let chunks: string[] = [];
+        return this.withInitialization(async () => {
+            console.log('Starting pseudocode generation, content length:', content.length);
+            let pseudocode = '';
+            let chunks: string[] = [];
 
-        try {
-            for await (const chunk of this.aiManager.streamPseudocode(content)) {
-                chunks.push(chunk);
-                pseudocode = chunks.join('');
-                const partialContent = TextProcessor.cleanPseudocode(pseudocode);
-                console.log('Generated chunk:', chunk.length, 'Total length:', pseudocode.length);
-                onProgress(partialContent);
+            try {
+                for await (const chunk of this.aiManager.streamPseudocode(content)) {
+                    chunks.push(chunk);
+                    pseudocode = chunks.join('');
+                    const partialContent = TextProcessor.cleanPseudocode(pseudocode);
+                    console.log('Generated chunk:', chunk.length, 'Total length:', pseudocode.length);
+                    onProgress(partialContent);
+                }
+
+                // Clean and return final pseudocode
+                const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
+                console.log('Generation complete, final length:', finalPseudocode.length);
+                return finalPseudocode;
+            } catch (error) {
+                console.error('Error generating pseudocode:', error);
+                throw error;
             }
-
-            // Clean and return final pseudocode
-            const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
-            console.log('Generation complete, final length:', finalPseudocode.length);
-            return finalPseudocode;
-        } catch (error) {
-            console.error('Error generating pseudocode:', error);
-            throw error;
-        }
+        });
     }
 
     async generateCode(pseudocode: string): Promise<string> {

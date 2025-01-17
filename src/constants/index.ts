@@ -4,7 +4,7 @@ export { PSEUDOCODE_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT, PSEUDOCODE_UPDATE_SYSTEM_
 
 // Configuration
 export const CONFIG_SECTION = 'abstractionIde';
-export const CONFIG_API_KEY = 'openaiApiKey';
+export const CONFIG_API_KEY = 'apiKey';
 
 // View Types
 export const CUSTOM_EDITOR_VIEW_TYPE = 'abstraction-ide.codeView'; 

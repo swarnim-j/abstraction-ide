@@ -19,7 +19,7 @@ export class AIManager {
         
         if (!apiKey) {
             const response = await vscode.window.showInformationMessage(
-                'OpenAI API key is required to use Abstraction IDE. Please enter a valid API key starting with "sk-".',
+                'API key is required to use Abstraction IDE. Please enter a valid OpenAI API key starting with "sk-".',
                 'Enter API Key'
             );
             
@@ -40,6 +40,7 @@ export class AIManager {
                 
                 if (key) {
                     try {
+                        console.log('Testing API key...');
                         // Test the API key before saving
                         const testClient = new OpenAI({ apiKey: key });
                         await testClient.chat.completions.create({
@@ -52,14 +53,18 @@ export class AIManager {
                         await config.update(CONFIG_API_KEY, key, vscode.ConfigurationTarget.Global);
                         this.client = testClient;
                         vscode.window.showInformationMessage('API key successfully validated and saved.');
+                        console.log('API key validated and saved');
                     } catch (error) {
+                        console.error('API key validation failed:', error);
                         vscode.window.showErrorMessage(`Invalid API key: ${error instanceof Error ? error.message : String(error)}`);
                         this.client = null;
+                        throw error;
                     }
                 }
             }
         } else {
             try {
+                console.log('Using existing API key');
                 this.client = new OpenAI({ apiKey });
                 // Validate the existing key
                 await this.client.chat.completions.create({
@@ -67,7 +72,9 @@ export class AIManager {
                     messages: [{ role: 'user', content: 'test' }],
                     max_tokens: 1
                 });
+                console.log('Existing API key validated');
             } catch (error) {
+                console.error('Existing API key validation failed:', error);
                 vscode.window.showErrorMessage(`Invalid saved API key: ${error instanceof Error ? error.message : String(error)}. Please enter a new key.`);
                 this.client = null;
                 // Clear the invalid key
@@ -82,20 +89,13 @@ export class AIManager {
         return !!this.client;
     }
 
-    private async createStreamingCompletion(messages: Array<{ role: 'system' | 'user' | 'assistant', content: string }>) {
+    async *streamPseudocode(code: string): AsyncGenerator<string> {
         if (!this.client) {
+            console.error('OpenAI client not initialized');
             throw new Error('OpenAI client not initialized');
         }
 
-        return this.client.chat.completions.create({
-            model: OPENAI_MODEL,
-            messages,
-            temperature: 0.2,
-            stream: true
-        });
-    }
-
-    async *streamPseudocode(code: string): AsyncGenerator<string> {
+        console.log('Starting pseudocode generation with OpenAI');
         const messages = [
             {
                 role: 'system' as const,
@@ -108,15 +108,44 @@ export class AIManager {
         ];
 
         try {
+            console.log('Creating streaming completion');
             const stream = await this.createStreamingCompletion(messages);
+            console.log('Stream created, starting to process chunks');
+            
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content;
                 if (content) {
+                    console.log('Received chunk, length:', content.length);
                     yield content;
                 }
             }
+            console.log('Stream completed');
         } catch (error) {
             console.error('Error in streamPseudocode:', error);
+            throw error;
+        }
+    }
+
+    private async createStreamingCompletion(messages: Array<{ role: 'system' | 'user' | 'assistant', content: string }>) {
+        if (!this.client) {
+            console.error('OpenAI client not initialized');
+            throw new Error('OpenAI client not initialized');
+        }
+
+        console.log('Creating streaming completion with messages:', {
+            messageCount: messages.length,
+            totalLength: messages.reduce((acc, msg) => acc + msg.content.length, 0)
+        });
+
+        try {
+            return await this.client.chat.completions.create({
+                model: OPENAI_MODEL,
+                messages,
+                temperature: 0.2,
+                stream: true
+            });
+        } catch (error) {
+            console.error('Error creating streaming completion:', error);
             throw error;
         }
     }

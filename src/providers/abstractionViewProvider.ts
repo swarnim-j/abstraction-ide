@@ -9,20 +9,64 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     private contentBuffer = new Map<string, string>();
     private chunkCount = new Map<string, number>();
     private generationLocks = new Map<string, Promise<void>>();
+    private statusBarItem: vscode.StatusBarItem;
     
     constructor(private abstractionManager: AbstractionManager) {
         // Listen for document changes
         vscode.workspace.onDidChangeTextDocument(async e => {
             if (e.document.uri.scheme === 'abstraction') {
+                console.log('Document changed:', e.document.uri.toString());
                 await this.handleDocumentChange(e.document);
+            }
+        });
+
+        // Add status bar item for generation progress
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+        
+        // Listen for active editor changes
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor && editor.document.uri.scheme === 'abstraction') {
+                console.log('Active editor changed to abstraction view:', editor.document.uri.toString());
+                this._onDidChange.fire(editor.document.uri);
             }
         });
     }
 
     static register(context: vscode.ExtensionContext, abstractionManager: AbstractionManager): AbstractionViewProvider {
+        console.log('Registering AbstractionViewProvider');
         const provider = new AbstractionViewProvider(abstractionManager);
+        
+        // Register the provider for the abstraction scheme
         const registration = vscode.workspace.registerTextDocumentContentProvider('abstraction', provider);
+        console.log('Provider registered for scheme: abstraction');
+        
+        // Register the provider as a disposable
         context.subscriptions.push(registration);
+        context.subscriptions.push(provider);
+        
+        // Register commands that use the provider
+        context.subscriptions.push(
+            vscode.commands.registerCommand('abstraction-ide.showAbstraction', async () => {
+                const editor = vscode.window.activeTextEditor;
+                if (editor) {
+                    const uri = editor.document.uri;
+                    const abstractionUri = uri.with({ scheme: 'abstraction' });
+                    console.log('Opening abstraction view for:', uri.toString());
+                    
+                    try {
+                        const doc = await vscode.workspace.openTextDocument(abstractionUri);
+                        await vscode.window.showTextDocument(doc, {
+                            preview: false,
+                            viewColumn: vscode.ViewColumn.Active
+                        });
+                    } catch (error) {
+                        console.error('Error opening abstraction view:', error);
+                        vscode.window.showErrorMessage(`Error opening abstraction view: ${error instanceof Error ? error.message : String(error)}`);
+                    }
+                }
+            })
+        );
+        
         return provider;
     }
 
@@ -84,7 +128,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                 await vscode.workspace.applyEdit(edit);
             } catch (error) {
                 console.error('Error updating code:', error);
-                vscode.window.showErrorMessage(`Error updating code: ${error}`);
+                vscode.window.showErrorMessage(`Error updating code: ${error instanceof Error ? error.message : String(error)}`);
             }
         });
     }
@@ -93,14 +137,14 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
         console.log('Providing content for:', uri.toString());
         const fileUri = uri.with({ scheme: 'file' });
 
-        // Return buffered content if we're still generating
-        if (this.generatingContent.get(uri.toString())) {
-            const content = this.contentBuffer.get(uri.toString());
-            console.log('Returning buffered content:', content?.length);
-            return content || 'Generating...';
-        }
-
         try {
+            // Check if we're already generating
+            if (this.generatingContent.get(uri.toString())) {
+                const buffered = this.contentBuffer.get(uri.toString());
+                console.log('Already generating, returning buffered content:', buffered?.length);
+                return buffered || 'Generating abstraction...';
+            }
+
             // Check cache first
             const cached = codeMapManager.get(fileUri.toString());
             if (cached?.pseudocode) {
@@ -108,25 +152,43 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                 return cached.pseudocode;
             }
 
-            return await this.withLock(fileUri.toString(), async () => {
+            console.log('No cached content, starting generation');
+            
+            // Set generating flag and initialize buffer
+            this.generatingContent.set(uri.toString(), true);
+            this.contentBuffer.set(uri.toString(), 'Generating abstraction...\n');
+            
+            try {
                 // Generate new pseudocode
                 const doc = await vscode.workspace.openTextDocument(fileUri);
                 const content = doc.getText();
+                console.log('Got document content, length:', content.length);
 
-                // Mark as generating and reset chunk count
-                this.generatingContent.set(uri.toString(), true);
-                this.chunkCount.set(uri.toString(), 0);
-                this.contentBuffer.set(uri.toString(), 'Generating abstraction...\n');
-
-                // Start generation in background
-                this.generateContent(uri, content).catch(error => {
+                // Start generation in background and return initial content
+                this.generateContent(uri, content).then(() => {
+                    console.log('Generation completed successfully');
+                }).catch(error => {
                     console.error('Error in background generation:', error);
-                    vscode.window.showErrorMessage(`Error generating abstraction: ${error}`);
+                    vscode.window.showErrorMessage(`Error generating abstraction: ${error instanceof Error ? error.message : String(error)}`);
+                    // Clean up on error
+                    this.generatingContent.delete(uri.toString());
+                    this.contentBuffer.delete(uri.toString());
+                    this.chunkCount.delete(uri.toString());
                 });
 
-                // Return initial content
-                return 'Generating abstraction...\n';
-            });
+                // Return initial content and trigger an update
+                const initialContent = this.contentBuffer.get(uri.toString()) || 'Generating abstraction...\n';
+                console.log('Returning initial content and triggering update');
+                // Force an immediate update
+                setImmediate(() => this._onDidChange.fire(uri));
+                return initialContent;
+            } catch (error) {
+                console.error('Error setting up generation:', error);
+                this.generatingContent.delete(uri.toString());
+                this.contentBuffer.delete(uri.toString());
+                this.chunkCount.delete(uri.toString());
+                throw error;
+            }
         } catch (error) {
             console.error('Error in provideTextDocumentContent:', error);
             this.generatingContent.delete(uri.toString());
@@ -138,62 +200,83 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
     private async generateContent(uri: vscode.Uri, content: string): Promise<void> {
         const fileUri = uri.with({ scheme: 'file' });
+        console.log('Starting content generation for:', fileUri.toString());
         
-        await this.withLock(fileUri.toString(), async () => {
-            try {
-                await vscode.window.withProgress({
-                    location: vscode.ProgressLocation.Notification,
-                    title: `Generating abstraction for ${vscode.workspace.asRelativePath(fileUri)}`,
-                    cancellable: false
-                }, async (progress) => {
-                    const pseudocode = await this.abstractionManager.generatePseudocode(content, (partial) => {
-                        // Update chunk count and buffer
-                        const count = (this.chunkCount.get(uri.toString()) || 0) + 1;
-                        this.chunkCount.set(uri.toString(), count);
-                        this.contentBuffer.set(uri.toString(), partial);
-                        
-                        // Update progress
-                        progress.report({ 
-                            message: `Generated ${count} chunks`,
-                            increment: 1 
-                        });
-                        
-                        // Notify content changed
-                        this._onDidChange.fire(uri);
-                    });
-
-                    // Cache the result and clean up
-                    const cached = codeMapManager.get(fileUri.toString());
-                    codeMapManager.set(fileUri.toString(), {
-                        code: content,
-                        pseudocode: pseudocode,
-                        lastEditTime: Date.now(),
-                        version: (cached?.version || 0) + 1
-                    });
-
-                    // Update final content
-                    this.contentBuffer.set(uri.toString(), pseudocode);
-                    this._onDidChange.fire(uri);
-
-                    // Clean up
-                    this.generatingContent.delete(uri.toString());
-                    this.chunkCount.delete(uri.toString());
+        // Show status bar item
+        this.statusBarItem.text = "$(sync~spin) Generating abstraction...";
+        this.statusBarItem.show();
+        
+        try {
+            console.log('Starting content generation with progress notification');
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Generating abstraction for ${vscode.workspace.asRelativePath(fileUri)}`,
+                cancellable: false
+            }, async (progress) => {
+                let totalChars = 0;
+                console.log('Calling abstractionManager.generatePseudocode');
+                const pseudocode = await this.abstractionManager.generatePseudocode(content, (partial) => {
+                    const count = (this.chunkCount.get(uri.toString()) || 0) + 1;
+                    this.chunkCount.set(uri.toString(), count);
+                    this.contentBuffer.set(uri.toString(), partial);
+                    
+                    totalChars = partial.length;
+                    console.log(`Generated chunk ${count}, content length: ${totalChars}`);
+                    
+                    // Update both progress notification and status bar
+                    const progressMsg = `Generated ${count} chunks (${totalChars} characters)`;
+                    progress.report({ message: progressMsg });
+                    this.statusBarItem.text = `$(sync~spin) ${progressMsg}`;
+                    
+                    // Force an immediate update
+                    setImmediate(() => this._onDidChange.fire(uri));
                 });
-            } catch (error) {
-                console.error('Error generating content:', error);
+
+                console.log('Generation completed, final length:', pseudocode.length);
+
+                // Cache the result
+                const cached = codeMapManager.get(fileUri.toString());
+                codeMapManager.set(fileUri.toString(), {
+                    code: content,
+                    pseudocode: pseudocode,
+                    lastEditTime: Date.now(),
+                    version: (cached?.version || 0) + 1
+                });
+
+                // Update final content and notify
+                this.contentBuffer.set(uri.toString(), pseudocode);
+                // Force an immediate update
+                setImmediate(() => this._onDidChange.fire(uri));
+                
+                // Show completion in status bar
+                this.statusBarItem.text = `$(check) Generated ${totalChars} characters`;
+                setTimeout(() => this.statusBarItem.hide(), 3000);
+            });
+        } catch (error) {
+            console.error('Error generating content:', error);
+            vscode.window.showErrorMessage(`Error generating abstraction: ${error instanceof Error ? error.message : String(error)}`);
+            this.statusBarItem.text = "$(error) Generation failed";
+            setTimeout(() => this.statusBarItem.hide(), 3000);
+            throw error;
+        } finally {
+            console.log('Cleaning up after generation');
+            // Don't clean up content buffer until after the last update is processed
+            setImmediate(() => {
                 this.generatingContent.delete(uri.toString());
-                this.contentBuffer.delete(uri.toString());
                 this.chunkCount.delete(uri.toString());
-                throw error;
-            }
-        });
+            });
+        }
     }
 
-    update(uri: vscode.Uri): void {
-        this._onDidChange.fire(uri);
+    update(): void {
+        // Fire change event for all active abstraction documents
+        vscode.workspace.textDocuments
+            .filter(doc => doc.uri.scheme === 'abstraction')
+            .forEach(doc => this._onDidChange.fire(doc.uri));
     }
 
     dispose(): void {
         this._onDidChange.dispose();
+        this.statusBarItem.dispose();
     }
 } 

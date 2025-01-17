@@ -11,7 +11,12 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguage:python",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onCustomEditor:abstraction-ide.codeView",
+    "onFileSystem:abstraction"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -30,6 +35,11 @@
         "command": "abstraction-ide.decreaseAbstraction",
         "title": "Decrease Abstraction Level",
         "category": "Abstraction IDE"
+      },
+      {
+        "command": "abstraction-ide.showAbstraction",
+        "title": "Show Abstraction View",
+        "category": "Abstraction IDE"
       }
     ],
     "keybindings": [
@@ -42,12 +52,17 @@
         "command": "abstraction-ide.decreaseAbstraction",
         "key": "alt+shift+-",
         "mac": "alt+shift+-"
+      },
+      {
+        "command": "abstraction-ide.showAbstraction",
+        "key": "alt+shift+a",
+        "mac": "alt+shift+a"
       }
     ],
     "configuration": {
       "title": "Abstraction IDE",
       "properties": {
-        "abstractionIde.openaiApiKey": {
+        "abstractionIde.apiKey": {
           "type": "string",
           "default": "",
           "description": "API key for OpenAI"
@@ -60,7 +75,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint . --ext .ts",
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
