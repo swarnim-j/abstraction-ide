@@ -51,6 +51,16 @@
         "command": "abstractionIde.configureProvider",
         "title": "Configure LLM Provider",
         "category": "Abstraction IDE"
+      },
+      {
+        "command": "abstractionIde.acceptChanges",
+        "title": "Accept Changes",
+        "category": "Abstraction IDE"
+      },
+      {
+        "command": "abstractionIde.rejectChanges",
+        "title": "Reject Changes",
+        "category": "Abstraction IDE"
       }
     ],
     "keybindings": [
@@ -68,6 +78,18 @@
         "command": "abstraction-ide.showAbstraction",
         "key": "alt+shift+a",
         "mac": "alt+shift+a"
+      },
+      {
+        "command": "abstractionIde.acceptChanges",
+        "key": "cmd+y",
+        "mac": "cmd+y",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "abstractionIde.rejectChanges",
+        "key": "cmd+n",
+        "mac": "cmd+n",
+        "when": "editorTextFocus"
       }
     ],
     "configuration": {

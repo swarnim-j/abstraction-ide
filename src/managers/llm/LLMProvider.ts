@@ -139,7 +139,7 @@ export class AnthropicProvider extends LLMProvider {
 export class LLMFactory {
     static async createProvider(type?: string): Promise<LLMProvider> {
         const config = vscode.workspace.getConfiguration('abstractionIde');
-        const providerType = type || config.get<string>('llmProvider') || 'anthropic';
+        const providerType = type || config.get<string>('llmProvider') || 'openai';
         
         switch (providerType) {
             case 'openai': {
@@ -159,7 +159,7 @@ export class LLMFactory {
 
             case 'anthropic': {
                 const apiKey = config.get<string>('anthropic.apiKey');
-                const model = config.get<string>('anthropic.model') || 'claude-3-5-sonnet-20241022';
+                const model = config.get<string>('anthropic.model') || 'claude-3-5-haiku-20241022';
                 
                 if (!apiKey) {
                     await this.promptForApiKey('anthropic');

@@ -1,9 +1,9 @@
 export class DiffCalculator {
     /**
-     * Calculate unified diff between old and new text
-     * Returns array of change hunks without line numbers
+     * Calculate unified diff between old and new text with hunk headers
+     * Used internally for LLM context
      */
-    static calculateUnifiedDiff(oldText: string, newText: string): string[] {
+    static calculateInternalDiff(oldText: string, newText: string): string[] {
         console.log('Input:', {
             oldLength: oldText.length,
             newLength: newText.length,

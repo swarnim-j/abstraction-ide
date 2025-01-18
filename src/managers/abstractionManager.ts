@@ -1,17 +1,55 @@
 import * as vscode from 'vscode';
 import { AIManager } from './aiManager';
 import { TextProcessor } from '../utils/textProcessor';
-import { CodeChange } from '../types';
 import { DiffCalculator } from '../utils/diffCalculator';
+import { DecorationProvider } from '../utils/decorationProvider';
 
 export class AbstractionManager {
     private aiManager: AIManager;
     private currentView: Map<string, 'code' | 'pseudocode'> = new Map();
     private codeMap: Map<string, { code: string; pseudocode: string }> = new Map();
+    private decorationProvider: DecorationProvider;
+    private acceptButton: vscode.StatusBarItem;
 
     constructor(context: vscode.ExtensionContext) {
         this.aiManager = new AIManager();
+        this.decorationProvider = DecorationProvider.getInstance();
         
+        // Create accept changes button (hidden by default)
+        this.acceptButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        this.acceptButton.text = "$(check) Accept Changes";
+        this.acceptButton.command = 'abstractionIde.acceptChanges';
+        
+        // Register accept/reject commands
+        context.subscriptions.push(
+            vscode.commands.registerCommand('abstractionIde.acceptChanges', () => {
+                this.acceptPendingChanges();
+            }),
+            vscode.commands.registerCommand('abstractionIde.rejectChanges', () => {
+                this.rejectPendingChanges();
+            }),
+            // Handle keyboard shortcuts for accept/reject
+            vscode.window.onDidChangeTextEditorSelection(e => {
+                if (e.textEditor && e.selections.length > 0) {
+                    const decorations = this.decorationProvider.getDecorations(e.textEditor.document.uri.toString());
+                    const clickedDecoration = decorations.find(d => d.range.contains(e.selections[0].active));
+                    
+                    if (clickedDecoration) {
+                        // Check if clicked near the accept or reject text
+                        const clickPosition = e.selections[0].active.character;
+                        const lineLength = e.textEditor.document.lineAt(e.selections[0].active.line).text.length;
+                        
+                        // Accept is on the left side of the buttons, Reject on the right
+                        if (clickPosition > lineLength + 2 && clickPosition < lineLength + 10) {
+                            this.acceptPendingChanges();
+                        } else if (clickPosition > lineLength + 12) {
+                            this.rejectPendingChanges();
+                        }
+                    }
+                }
+            })
+        );
+
         // Register status bar item to show initialization status
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
         statusBarItem.text = "$(sync~spin) Initializing Abstraction IDE...";
@@ -29,20 +67,8 @@ export class AbstractionManager {
             setTimeout(() => statusBarItem.hide(), 3000);
         });
         
-        // Add save handler for original code file
-        vscode.workspace.onWillSaveTextDocument(async e => {
-            if (e.document.uri.scheme === 'file') {
-                console.log('Saving original code file:', e.document.uri.toString());
-                // Skip pseudocode update if this save was triggered by a pseudocode change
-                const abstractionUri = this.toAbstractionUri(e.document.uri);
-                const mapping = this.codeMap.get(abstractionUri.toString());
-                if (mapping?.code === e.document.getText()) {
-                    console.log('Skipping pseudocode update as this save was triggered by pseudocode changes');
-                    return;
-                }
-                e.waitUntil(this.handleCodeSave(e.document));
-            }
-        });
+        // Setup save handler
+        this.setupSaveHandler(context);
         
         context.subscriptions.push(statusBarItem);
     }
@@ -74,7 +100,7 @@ export class AbstractionManager {
 
             // Calculate code changes
             console.log('\n=== Calculating Code Changes ===');
-            const codeDiff = DiffCalculator.calculateUnifiedDiff(mapping.code, newCode);
+            const codeDiff = DiffCalculator.calculateInternalDiff(mapping.code, newCode);
             
             if (codeDiff.length === 0) {
                 console.log('No changes detected in code');
@@ -120,6 +146,11 @@ export class AbstractionManager {
                 return;
             }
 
+            // Show pending changes in pseudocode view
+            const abstractionDoc = await vscode.workspace.openTextDocument(abstractionUri);
+            const editor = await vscode.window.showTextDocument(abstractionDoc);
+            this.showPendingChanges(editor, pseudocodeDiff);
+
             // Update the mapping for both URIs
             const newMapping = {
                 code: newCode,
@@ -129,7 +160,6 @@ export class AbstractionManager {
             this.codeMap.set(uri.toString(), newMapping);
 
             // Update the abstraction document if it exists
-            const abstractionDoc = await vscode.workspace.openTextDocument(abstractionUri);
             const edit = new vscode.WorkspaceEdit();
             edit.replace(
                 abstractionUri,
@@ -170,7 +200,8 @@ export class AbstractionManager {
     }
 
     dispose(): void {
-        // Clean up resources
+        this.decorationProvider.dispose();
+        this.acceptButton.dispose();
     }
 
     private toAbstractionUri(uri: vscode.Uri): vscode.Uri {
@@ -331,7 +362,7 @@ export class AbstractionManager {
 
             // Calculate pseudocode diff for better context to the LLM
             console.log('\n=== Calculating Pseudocode Changes ===');
-            const pseudocodeDiff = DiffCalculator.calculateUnifiedDiff(originalPseudocode, newPseudocode);
+            const pseudocodeDiff = DiffCalculator.calculateInternalDiff(originalPseudocode, newPseudocode);
             
             if (pseudocodeDiff.length === 0) {
                 console.log('No changes detected in pseudocode');
@@ -383,28 +414,29 @@ export class AbstractionManager {
                 console.log('Warning: Generated code is identical to original');
                 statusBarItem.text = "$(info) No code changes needed";
             } else {
-                // Update the mapping
-                const uri = vscode.window.activeTextEditor?.document.uri;
-                if (uri) {
-                    this.codeMap.set(uri.toString(), {
+                // Show pending changes
+                const editor = vscode.window.activeTextEditor;
+                if (editor) {
+                    // Update the mapping before showing changes
+                    const uri = editor.document.uri;
+                    const newMapping = {
                         code: newCode,
                         pseudocode: newPseudocode
-                    });
-                    statusBarItem.text = "$(check) Code updated successfully";
+                    };
+                    this.codeMap.set(uri.toString(), newMapping);
+                    this.codeMap.set(this.toAbstractionUri(uri).toString(), newMapping);
 
-                    // Create and apply edit
+                    // Show the changes with decorations
+                    this.showPendingChanges(editor, codeDiff);
+                    
+                    // Apply changes to the editor
                     const edit = new vscode.WorkspaceEdit();
-                    const doc = await vscode.workspace.openTextDocument(uri);
                     edit.replace(
-                        uri,
-                        new vscode.Range(0, 0, doc.lineCount, 0),
+                        editor.document.uri,
+                        new vscode.Range(0, 0, editor.document.lineCount, 0),
                         newCode
                     );
                     await vscode.workspace.applyEdit(edit);
-                    
-                    // Save the document
-                    await doc.save();
-                    console.log('Auto-saved code changes');
                 }
             }
 
@@ -419,5 +451,95 @@ export class AbstractionManager {
             setTimeout(() => statusBarItem.hide(), 3000);
             throw error;
         }
+    }
+
+    private async acceptPendingChanges() {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            // Clear decorations for the current document
+            this.decorationProvider.clearDecorations(editor.document.uri.toString());
+            
+            // Hide the accept button
+            this.acceptButton.hide();
+
+            // Save the document to persist changes
+            if (editor.document.isDirty) {
+                await editor.document.save();
+            }
+            
+            // Show success message
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(check) Changes accepted";
+            statusBarItem.show();
+            setTimeout(() => statusBarItem.hide(), 3000);
+
+        } catch (error) {
+            console.error('Error accepting changes:', error);
+            vscode.window.showErrorMessage(`Error accepting changes: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    private async rejectPendingChanges() {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            // Clear decorations
+            this.decorationProvider.clearDecorations(editor.document.uri.toString());
+            
+            // Hide the accept button
+            this.acceptButton.hide();
+
+            // Revert the document to its original state
+            const uri = editor.document.uri;
+            const mapping = this.codeMap.get(uri.toString());
+            if (mapping) {
+                const edit = new vscode.WorkspaceEdit();
+                edit.replace(
+                    uri,
+                    new vscode.Range(0, 0, editor.document.lineCount, 0),
+                    mapping.code
+                );
+                await vscode.workspace.applyEdit(edit);
+            }
+            
+            // Show rejection message
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(x) Changes rejected";
+            statusBarItem.show();
+            setTimeout(() => statusBarItem.hide(), 3000);
+
+        } catch (error) {
+            console.error('Error rejecting changes:', error);
+            vscode.window.showErrorMessage(`Error rejecting changes: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    private showPendingChanges(editor: vscode.TextEditor, diff: string) {
+        // Show decorations with inline accept button
+        this.decorationProvider.showDiffDecorations(editor, diff);
+    }
+
+    // Add save handler for original code file
+    private setupSaveHandler(context: vscode.ExtensionContext) {
+        context.subscriptions.push(
+            vscode.workspace.onWillSaveTextDocument(async e => {
+                if (e.document.uri.scheme === 'file') {
+                    console.log('Saving original code file:', e.document.uri.toString());
+                    const abstractionUri = this.toAbstractionUri(e.document.uri);
+                    const mapping = this.codeMap.get(abstractionUri.toString());
+                    
+                    // Skip if this is a save triggered by accepting changes
+                    if (mapping?.code === e.document.getText()) {
+                        console.log('Skipping pseudocode update as this save was triggered by accepting changes');
+                        return;
+                    }
+                    
+                    e.waitUntil(this.handleCodeSave(e.document));
+                }
+            })
+        );
     }
 } 

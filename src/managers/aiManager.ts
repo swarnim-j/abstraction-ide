@@ -1,9 +1,8 @@
 import { LLMProvider, LLMFactory, Message, StreamingResponse } from './llm/LLMProvider';
 import { CodeChange } from '../types';
 import {
-    PSEUDOCODE_SYSTEM_PROMPT,
-    CODE_SYSTEM_PROMPT,
-    PSEUDOCODE_TO_CODE_DIFF_PROMPT,
+    PSEUDOCODE_GENERATE_SYSTEM_PROMPT,
+    CODE_UPDATE_SYSTEM_PROMPT,
     PSEUDOCODE_UPDATE_SYSTEM_PROMPT
 } from '../constants/prompts';
 
@@ -45,7 +44,7 @@ export class AIManager {
         const messages = [
             {
                 role: 'system' as const,
-                content: PSEUDOCODE_SYSTEM_PROMPT
+                content: PSEUDOCODE_GENERATE_SYSTEM_PROMPT
             },
             {
                 role: 'user' as const,
@@ -142,7 +141,7 @@ export class AIManager {
         const messages = [
             {
                 role: 'system' as const,
-                content: CODE_SYSTEM_PROMPT
+                content: CODE_UPDATE_SYSTEM_PROMPT
             },
             {
                 role: 'user' as const,
