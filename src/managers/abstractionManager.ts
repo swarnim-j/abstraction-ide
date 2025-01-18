@@ -29,7 +29,127 @@ export class AbstractionManager {
             setTimeout(() => statusBarItem.hide(), 3000);
         });
         
+        // Add save handler for original code file
+        vscode.workspace.onWillSaveTextDocument(async e => {
+            if (e.document.uri.scheme === 'file') {
+                console.log('Saving original code file:', e.document.uri.toString());
+                // Skip pseudocode update if this save was triggered by a pseudocode change
+                const abstractionUri = this.toAbstractionUri(e.document.uri);
+                const mapping = this.codeMap.get(abstractionUri.toString());
+                if (mapping?.code === e.document.getText()) {
+                    console.log('Skipping pseudocode update as this save was triggered by pseudocode changes');
+                    return;
+                }
+                e.waitUntil(this.handleCodeSave(e.document));
+            }
+        });
+        
         context.subscriptions.push(statusBarItem);
+    }
+
+    private async handleCodeSave(document: vscode.TextDocument): Promise<void> {
+        const uri = document.uri;
+        const newCode = document.getText();
+        const abstractionUri = this.toAbstractionUri(uri);
+        
+        try {
+            // Get the original mapping
+            const mapping = this.codeMap.get(abstractionUri.toString());
+            if (!mapping) {
+                console.log('No existing mapping, doing full pseudocode generation');
+                // Do full generation if no existing mapping
+                const pseudocode = await this.generatePseudocode(newCode, () => {});
+                return;
+            }
+
+            // Generate updated pseudocode
+            console.log('\n=== Generating Updated Pseudocode ===');
+            console.log('Input:', {
+                originalCodeLength: mapping.code.length,
+                newCodeLength: newCode.length,
+                originalPseudocodeLength: mapping.pseudocode.length,
+                originalCodePreview: mapping.code.slice(0, 100) + '...',
+                newCodePreview: newCode.slice(0, 100) + '...',
+            });
+
+            // Calculate code changes
+            console.log('\n=== Calculating Code Changes ===');
+            const codeDiff = DiffCalculator.calculateUnifiedDiff(mapping.code, newCode);
+            
+            if (codeDiff.length === 0) {
+                console.log('No changes detected in code');
+                return;
+            }
+
+            // Show status bar update
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(sync~spin) Updating pseudocode...";
+            statusBarItem.show();
+
+            // Generate pseudocode changes using the diff
+            console.log('\n=== Generating Pseudocode Changes ===');
+            let pseudocodeDiff = '';
+            for await (const chunk of this.aiManager.streamPseudocodeUpdate(
+                newCode,
+                mapping.pseudocode,
+                codeDiff.map(change => ({ type: 'modify' as const, content: change }))
+            )) {
+                pseudocodeDiff += chunk;
+            }
+
+            console.log('Received pseudocode diff from LLM:', {
+                length: pseudocodeDiff.length,
+                content: pseudocodeDiff
+            });
+
+            if (!pseudocodeDiff.trim()) {
+                console.error('Failed to generate pseudocode changes');
+                statusBarItem.text = "$(error) Pseudocode update failed";
+                setTimeout(() => statusBarItem.hide(), 3000);
+                return;
+            }
+
+            // Apply the changes to the pseudocode
+            console.log('\n=== Applying Pseudocode Changes ===');
+            const newPseudocode = DiffCalculator.applyDiff(mapping.pseudocode, pseudocodeDiff);
+
+            if (newPseudocode === mapping.pseudocode) {
+                console.log('Warning: Generated pseudocode is identical to original');
+                statusBarItem.text = "$(info) No pseudocode changes needed";
+                setTimeout(() => statusBarItem.hide(), 3000);
+                return;
+            }
+
+            // Update the mapping for both URIs
+            const newMapping = {
+                code: newCode,
+                pseudocode: newPseudocode
+            };
+            this.codeMap.set(abstractionUri.toString(), newMapping);
+            this.codeMap.set(uri.toString(), newMapping);
+
+            // Update the abstraction document if it exists
+            const abstractionDoc = await vscode.workspace.openTextDocument(abstractionUri);
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(
+                abstractionUri,
+                new vscode.Range(0, 0, abstractionDoc.lineCount, 0),
+                newPseudocode
+            );
+            await vscode.workspace.applyEdit(edit);
+            await abstractionDoc.save();
+
+            statusBarItem.text = "$(check) Pseudocode updated";
+            setTimeout(() => statusBarItem.hide(), 3000);
+
+        } catch (error) {
+            console.error('Error handling code save:', error);
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(error) Pseudocode update error";
+            statusBarItem.show();
+            setTimeout(() => statusBarItem.hide(), 3000);
+            vscode.window.showErrorMessage(`Error updating pseudocode: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     async ensureInitialized(): Promise<void> {

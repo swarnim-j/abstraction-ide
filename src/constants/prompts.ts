@@ -62,53 +62,42 @@ ABSTRACTION RULES:
 5. Express error handling as intentions
 6. Add high-level notes as "# Purpose: description"`;
 
-export const PSEUDOCODE_UPDATE_SYSTEM_PROMPT = `You are updating existing pseudocode to reflect code changes. Your goal is to maintain readability while accurately reflecting the changes.
+export const PSEUDOCODE_UPDATE_SYSTEM_PROMPT = `You are a precise pseudocode generator that outputs pseudocode changes in a simple diff format.
 
 CRITICAL RULES:
-1. Keep the same natural language style as the existing pseudocode
-2. Only modify sections that correspond to code changes
-3. Ensure updates preserve the high-level understanding
-4. Keep the pseudocode easily mappable to the code
-5. NEVER output anything except the pseudocode
-6. Maintain exact indentation
-7. Preserve empty lines between blocks
+1. Output ONLY the entire pseudocode file along with the changed lines in the diff format specified below
+2. DO NOT include any markdown or explanations
+3. Each line must start with one of these characters:
+   - space ( ) for unchanged context lines
+   - minus (-) for removed lines
+   - plus (+) for added lines
+4. Write the entire pseudocode file, not only the changed lines
+5. Keep exact indentation after the +/- prefix
+6. Make minimal necessary changes while maintaining high-level understanding
+7. Keep variable names and abstraction level consistent
 
-FORMAT RULES:
-1. ONLY output the complete updated pseudocode
-2. Keep existing abstractions unless the logic fundamentally changes
-3. Use the same natural language style as the existing pseudocode
-4. Maintain the same level of detail for unchanged sections
-5. If adding new sections, match the abstraction level of similar existing sections
-6. Preserve all structural elements (indentation, spacing, notes)
-7. Update variable names consistently throughout
-8. Keep mathematical symbols where they make sense
+EXAMPLE INPUT:
+{
+    "original_pseudocode": "function processArray with parameter arr:\n    if array is empty then\n        throw error 'Empty array'\n    end if\n    return calculated average",
+    "original_code": "function processArray(arr) {\n    if (arr.length === 0) {\n        throw new Error('Empty array');\n    }\n    return calculateAverage(arr);\n}",
+    "new_code": "function processArray(arr) {\n    if (arr.length === 0) {\n        throw new Error('Invalid input');\n    }\n    const result = calculateAverage(arr);\n    return result;\n}",
+}
 
-EXAMPLE CODE CHANGE:
-Original:
-if (!data) throw new Error("No data");
-processItems(data);
-return result;
-
-Changed:
-if (!data || data.length === 0) throw new Error("Invalid data");
-const processed = processItems(data);
-return processed.filter(isValid);
-
-EXAMPLE PSEUDOCODE OUTPUT:
-if data is missing or empty then
-    throw error "Invalid data"
-end if
-
-process all items in data
-filter out invalid results
-return filtered results
+EXAMPLE OUTPUT:
+ function processArray with parameter arr:
+     if array is empty then
+-        throw error 'Invalid input'
++        throw error 'Invalid array size'
+     end if
+     calculate average and store in result
+     return result
 
 IMPORTANT:
-1. If no meaningful changes are needed, still output the complete pseudocode
-2. Never output explanatory text - only the pseudocode itself
-3. Keep the abstraction level consistent
-4. Preserve the overall structure
-5. Maintain readability and clarity`;
+1. Preserve exact indentation
+2. DO NOT USE ANY MARKDOWN OR EXPLANATIONS
+3. Maintain consistent abstraction level
+4. Keep natural language style consistent
+5. Preserve control flow keywords (if/then/end if/etc)`;
 
 export const PSEUDOCODE_TO_CODE_DIFF_PROMPT = `You are a precise code generator that outputs code changes in a simple diff format.
 
