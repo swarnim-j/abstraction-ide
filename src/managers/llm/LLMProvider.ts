@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { CONFIG_SECTION } from '../../constants';
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface Message {
     role: 'system' | 'user' | 'assistant';
@@ -80,11 +80,66 @@ export class OpenAIProvider extends LLMProvider {
     }
 }
 
+export class AnthropicProvider extends LLMProvider {
+    private client: Anthropic | null = null;
+    private initialized = false;
+
+    async initialize(): Promise<void> {
+        if (this.initialized) return;
+
+        try {
+            this.client = new Anthropic({
+                apiKey: this.config.apiKey
+            });
+            this.initialized = true;
+        } catch (error) {
+            console.error('Error initializing Anthropic:', error);
+            throw error;
+        }
+    }
+
+    isInitialized(): boolean {
+        return this.initialized;
+    }
+
+    async *createStreamingCompletion(messages: Message[]): AsyncIterable<StreamingResponse> {
+        if (!this.client) throw new Error('Anthropic not initialized');
+
+        // Convert messages to Anthropic format
+        const systemMessage = messages.find(m => m.role === 'system')?.content || '';
+        const userMessages = messages.filter(m => m.role === 'user').map(m => m.content);
+        const prompt = systemMessage + '\n\n' + userMessages.join('\n\n');
+
+        const stream = await this.client.messages.create({
+            model: this.config.model,
+            max_tokens: this.config.maxTokens || 4096,
+            temperature: this.config.temperature || 0.7,
+            messages: [{
+                role: 'user',
+                content: prompt
+            }],
+            stream: true
+        });
+
+        for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && 'text' in chunk.delta && chunk.delta.text) {
+                yield {
+                    choices: [{
+                        delta: {
+                            content: chunk.delta.text
+                        }
+                    }]
+                };
+            }
+        }
+    }
+}
+
 // Factory to create LLM providers
 export class LLMFactory {
     static async createProvider(type?: string): Promise<LLMProvider> {
         const config = vscode.workspace.getConfiguration('abstractionIde');
-        const providerType = type || config.get<string>('llmProvider') || 'openai';
+        const providerType = type || config.get<string>('llmProvider') || 'anthropic';
         
         switch (providerType) {
             case 'openai': {
@@ -101,8 +156,22 @@ export class LLMFactory {
                     model
                 });
             }
+
+            case 'anthropic': {
+                const apiKey = config.get<string>('anthropic.apiKey');
+                const model = config.get<string>('anthropic.model') || 'claude-3-5-sonnet-20241022';
+                
+                if (!apiKey) {
+                    await this.promptForApiKey('anthropic');
+                    return this.createProvider('anthropic');
+                }
+                
+                return new AnthropicProvider({
+                    apiKey,
+                    model
+                });
+            }
             
-            // Add other providers as needed
             default:
                 throw new Error(`Provider ${type} not implemented`);
         }

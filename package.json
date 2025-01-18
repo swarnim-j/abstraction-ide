@@ -20,11 +20,17 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "languages": [{
-      "id": "pseudocode",
-      "aliases": ["Pseudocode"],
-      "extensions": [".pseudo"]
-    }],
+    "languages": [
+      {
+        "id": "pseudocode",
+        "aliases": [
+          "Pseudocode"
+        ],
+        "extensions": [
+          ".pseudo"
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "abstraction-ide.increaseAbstraction",
@@ -69,8 +75,8 @@
       "properties": {
         "abstractionIde.llmProvider": {
           "type": "string",
-          "enum": ["openai", "anthropic", "mistral", "google"],
-          "default": "openai",
+          "default": "anthropic",
+          "enum": ["openai", "anthropic"],
           "description": "The LLM provider to use"
         },
         "abstractionIde.openai.apiKey": {
@@ -79,7 +85,6 @@
         },
         "abstractionIde.openai.model": {
           "type": "string",
-          "enum": ["gpt-4o", "gpt-4o-mini"],
           "default": "gpt-4o",
           "description": "OpenAI model to use"
         },
@@ -87,13 +92,10 @@
           "type": "string",
           "description": "Anthropic API key"
         },
-        "abstractionIde.mistral.apiKey": {
+        "abstractionIde.anthropic.model": {
           "type": "string",
-          "description": "Mistral API key"
-        },
-        "abstractionIde.google.apiKey": {
-          "type": "string",
-          "description": "Google API key"
+          "default": "claude-3-5-sonnet-20241022",
+          "description": "Anthropic model to use"
         }
       }
     }
@@ -116,6 +118,7 @@
     "typescript": "^5.x"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.1",
     "@types/diff": "^7.0.0",
     "@types/diff-match-patch": "^1.0.36",
     "diff": "^7.0.0",
