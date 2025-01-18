@@ -1,16 +1,4 @@
-import DiffMatchPatch from 'diff-match-patch';
-
-interface Hunk {
-    context: string[];
-    changes: Array<{
-        type: '+' | '-';
-        content: string;
-    }>;
-}
-
 export class DiffCalculator {
-    private static dmp = new DiffMatchPatch();
-
     /**
      * Calculate unified diff between old and new text
      * Returns array of change hunks without line numbers
@@ -172,30 +160,4 @@ export class DiffCalculator {
         
         return resultLines.join('\n');
     }
-
-    /**
-     * Find the first position where two strings differ
-     */
-    public static findFirstDifference(text1: string, text2: string): { position: number, context: string } | null {
-        const minLength = Math.min(text1.length, text2.length);
-        for (let i = 0; i < minLength; i++) {
-            if (text1[i] !== text2[i]) {
-                const start = Math.max(0, i - 20);
-                const end = Math.min(text1.length, i + 20);
-                return {
-                    position: i,
-                    context: `...${text1.slice(start, i)}[${text1[i] || ''}→${text2[i] || ''}]${text1.slice(i + 1, end)}...`
-                };
-            }
-        }
-        if (text1.length !== text2.length) {
-            const i = minLength;
-            const start = Math.max(0, i - 20);
-            return {
-                position: i,
-                context: `...${text1.slice(start, i)}[${text1.length > text2.length ? text1[i] : ''}→${text2.length > text1.length ? text2[i] : ''}]...`
-            };
-        }
-        return null;
-    }
-} 
+}

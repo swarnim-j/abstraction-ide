@@ -271,6 +271,20 @@ export class AbstractionManager {
                         pseudocode: newPseudocode
                     });
                     statusBarItem.text = "$(check) Code updated successfully";
+
+                    // Create and apply edit
+                    const edit = new vscode.WorkspaceEdit();
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    edit.replace(
+                        uri,
+                        new vscode.Range(0, 0, doc.lineCount, 0),
+                        newCode
+                    );
+                    await vscode.workspace.applyEdit(edit);
+                    
+                    // Save the document
+                    await doc.save();
+                    console.log('Auto-saved code changes');
                 }
             }
 
