@@ -1,4 +1,5 @@
 import { LLMProvider, LLMFactory, Message, StreamingResponse } from './llm/LLMProvider';
+import { CodeChange } from '../types';
 import {
     PSEUDOCODE_SYSTEM_PROMPT,
     CODE_SYSTEM_PROMPT,
@@ -61,7 +62,6 @@ export class AIManager {
                 const content = chunk.choices[0]?.delta?.content;
                 if (content) {
                     totalContent += content;
-                    console.log('Received content chunk, total length:', totalContent.length);
                     if (onProgress) {
                         onProgress(totalContent);
                     }
@@ -115,31 +115,24 @@ export class AIManager {
     }
 
     async *streamToCode(
-        prompt: string,
+        pseudocode: string,
         originalCode: string,
-        changes: any[] = [],
-        systemPromptKey: 'CODE_SYSTEM_PROMPT' | 'PSEUDOCODE_TO_CODE_DIFF_PROMPT' = 'CODE_SYSTEM_PROMPT'
+        changes: CodeChange[]
     ): AsyncGenerator<string> {
         console.log('streamToCode called with:', {
-            promptLength: prompt.length,
+            pseudocodeLength: pseudocode.length,
             originalCodeLength: originalCode.length,
-            changesCount: changes.length,
-            systemPromptKey
+            changesCount: changes.length
         });
-
-        const systemPrompts = {
-            'CODE_SYSTEM_PROMPT': CODE_SYSTEM_PROMPT,
-            'PSEUDOCODE_TO_CODE_DIFF_PROMPT': PSEUDOCODE_TO_CODE_DIFF_PROMPT
-        } as const;
 
         const messages = [
             {
                 role: 'system' as const,
-                content: systemPrompts[systemPromptKey]
+                content: CODE_SYSTEM_PROMPT
             },
             {
                 role: 'user' as const,
-                content: prompt
+                content: `Here is the original code:\n\n${originalCode}\n\nHere is the current pseudocode:\n\n${pseudocode}\n\nHere are the changes made to the pseudocode:\n${JSON.stringify(changes, null, 2)}\n\nPlease generate a complete diff that includes the full context of the changes, not just the immediate lines. Make sure to include function boundaries and any necessary imports/exports.`
             }
         ];
 
@@ -151,18 +144,17 @@ export class AIManager {
 
             const stream = await this.createStreamingCompletion(messages);
             let totalContent = '';
-
+            
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content;
                 if (content) {
                     totalContent += content;
-                    console.log('Received content chunk, total length:', totalContent.length);
                     yield content;
                 }
             }
-
-            console.log('Stream completed, final content length:', totalContent.length);
             
+            console.log('Stream completed, final content length:', totalContent.length);
+
             if (!totalContent.trim()) {
                 console.error('No content generated from API');
                 throw new Error('No content generated from API');

@@ -7,6 +7,7 @@ import { DiffCalculator } from '../utils/diffCalculator';
 export class AbstractionManager {
     private aiManager: AIManager;
     private currentView: Map<string, 'code' | 'pseudocode'> = new Map();
+    private codeMap: Map<string, { code: string; pseudocode: string }> = new Map();
 
     constructor(context: vscode.ExtensionContext) {
         this.aiManager = new AIManager();
@@ -137,13 +138,25 @@ export class AbstractionManager {
                     chunks.push(chunk);
                     pseudocode = chunks.join('');
                     const partialContent = TextProcessor.cleanPseudocode(pseudocode);
-                    console.log('Generated chunk:', chunk.length, 'Total length:', pseudocode.length);
                     onProgress(partialContent);
                 }
 
                 // Clean and return final pseudocode
                 const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
                 console.log('Generation complete, final length:', finalPseudocode.length);
+                
+                // Store the original code and pseudocode mapping for both URIs
+                const uri = vscode.window.activeTextEditor?.document.uri;
+                if (uri) {
+                    const mapping = {
+                        code: content,
+                        pseudocode: finalPseudocode
+                    };
+                    // Store for both file and abstraction URIs
+                    this.codeMap.set(uri.toString(), mapping);
+                    this.codeMap.set(this.toAbstractionUri(uri).toString(), mapping);
+                }
+                
                 return finalPseudocode;
             } catch (error) {
                 console.error('Error generating pseudocode:', error);
@@ -152,57 +165,124 @@ export class AbstractionManager {
         });
     }
 
-    async generateCode(newPseudocode: string, originalPseudocode?: string): Promise<string> {
+    /**
+     * Get the original code from the active editor
+     */
+    private async getOriginalCode(): Promise<string | undefined> {
+        const uri = vscode.window.activeTextEditor?.document.uri;
+        if (!uri) {
+            console.error('No active editor found');
+            return undefined;
+        }
+        
+        const originalMapping = this.codeMap.get(uri.toString());
+        if (!originalMapping) {
+            console.error('No original code mapping found');
+            return undefined;
+        }
+        
+        return originalMapping.code;
+    }
+
+    /**
+     * Get the code and pseudocode mapping for a given URI
+     */
+    getCodeMapping(uri: string): { code: string; pseudocode: string } | undefined {
+        return this.codeMap.get(uri);
+    }
+
+    async generateCode(newPseudocode: string, originalPseudocode: string): Promise<string> {
+        console.log('\n=== Starting Code Generation ===');
+        console.log('Input:', {
+            newPseudocodeLength: newPseudocode.length,
+            originalPseudocodeLength: originalPseudocode.length,
+            newPseudocodePreview: newPseudocode.slice(0, 100) + '...',
+            originalPseudocodePreview: originalPseudocode.slice(0, 100) + '...',
+        });
+
         try {
-            // Get the original code
-            const originalCode = await vscode.workspace.openTextDocument(
-                this.toFileUri(vscode.window.activeTextEditor?.document.uri!)
-            ).then(doc => doc.getText());
-
-            // If we have original pseudocode, use diff-based generation
-            if (originalPseudocode) {
-                console.log('Using diff-based code generation');
-                
-                // Calculate pseudocode changes
-                const pseudocodeDiff = DiffCalculator.calculateUnifiedDiff(originalPseudocode, newPseudocode);
-                
-                // Generate the prompt with full context
-                const prompt = JSON.stringify({
-                    original_code: originalCode,
-                    original_pseudocode: originalPseudocode,
-                    pseudocode_diff: pseudocodeDiff.join('\n@@ ... @@\n'),
-                    new_pseudocode: newPseudocode
-                });
-
-                // Stream the code diff from the AI
-                let codeDiff = '';
-                for await (const chunk of this.aiManager.streamToCode(
-                    prompt,
-                    originalCode,
-                    pseudocodeDiff,
-                    'PSEUDOCODE_TO_CODE_DIFF_PROMPT'
-                )) {
-                    codeDiff += chunk;
-                }
-
-                // Apply the diff to get the new code
-                return DiffCalculator.applyUnifiedDiff(originalCode, codeDiff);
+            // Get the original code mapping
+            const originalCode = await this.getOriginalCode();
+            if (!originalCode) {
+                console.error('No original code mapping found');
+                vscode.window.showErrorMessage('Failed to find original code mapping');
+                return '';
             }
+
+            // Calculate pseudocode diff for better context to the LLM
+            console.log('\n=== Calculating Pseudocode Changes ===');
+            const pseudocodeDiff = DiffCalculator.calculateUnifiedDiff(originalPseudocode, newPseudocode);
             
-            // Fallback to full generation for new files
-            console.log('No original pseudocode, using full code generation');
-            let code = '';
+            if (pseudocodeDiff.length === 0) {
+                console.log('No changes detected in pseudocode');
+                return originalCode;
+            }
+
+            // Show status bar update
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(sync~spin) Generating code changes...";
+            statusBarItem.show();
+
+            // Generate code changes using the diff
+            console.log('\n=== Generating Code Changes ===');
+            const prompt = JSON.stringify({
+                original_code: originalCode,
+                original_pseudocode: originalPseudocode,
+                new_pseudocode: newPseudocode,
+                changes_detected: pseudocodeDiff
+            }, null, 2);
+            console.log('Sending prompt to LLM:', prompt);
+
+            // Get complete diff from LLM (no streaming needed for diffs)
+            let codeDiff = '';
             for await (const chunk of this.aiManager.streamToCode(
                 newPseudocode,
                 originalCode,
-                [],
-                'CODE_SYSTEM_PROMPT'
+                pseudocodeDiff.map(change => ({ type: 'modify' as const, content: change }))
             )) {
-                code += chunk;
+                codeDiff += chunk;
             }
-            return TextProcessor.cleanCodeResponse(code);
+
+            console.log('Received code diff from LLM:', {
+                length: codeDiff.length,
+                content: codeDiff
+            });
+
+            if (!codeDiff.trim()) {
+                console.error('Failed to generate code changes');
+                statusBarItem.text = "$(error) Code generation failed";
+                setTimeout(() => statusBarItem.hide(), 3000);
+                return originalCode;
+            }
+
+            // Apply the changes
+            console.log('\n=== Applying Code Changes ===');
+            const newCode = DiffCalculator.applyDiff(originalCode, codeDiff);
+
+            if (newCode === originalCode) {
+                console.log('Warning: Generated code is identical to original');
+                statusBarItem.text = "$(info) No code changes needed";
+            } else {
+                // Update the mapping
+                const uri = vscode.window.activeTextEditor?.document.uri;
+                if (uri) {
+                    this.codeMap.set(uri.toString(), {
+                        code: newCode,
+                        pseudocode: newPseudocode
+                    });
+                    statusBarItem.text = "$(check) Code updated successfully";
+                }
+            }
+
+            setTimeout(() => statusBarItem.hide(), 3000);
+            return newCode;
+
         } catch (error) {
             console.error('Error generating code:', error);
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+            statusBarItem.text = "$(error) Code generation error";
+            statusBarItem.show();
+            setTimeout(() => statusBarItem.hide(), 3000);
             throw error;
         }
     }

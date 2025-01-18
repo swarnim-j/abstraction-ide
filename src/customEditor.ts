@@ -3,6 +3,7 @@ import { AIManager } from './managers/aiManager';
 import { TextProcessor } from './utils/textProcessor';
 import { codeMapManager } from './state/codeMap';
 import { CodeChange } from './types/index';
+import { AbstractionManager } from './managers/abstractionManager';
 
 export class CodeViewProvider implements vscode.CustomTextEditorProvider {
     private static readonly viewType = 'abstraction-ide.codeView';
@@ -10,10 +11,12 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
     private webviewPanels: Map<string, vscode.WebviewPanel> = new Map();
     private documentListeners: Map<string, vscode.Disposable> = new Map();
     private aiManager: AIManager;
+    private abstractionManager: AbstractionManager;
 
     constructor(private readonly context: vscode.ExtensionContext) {
         this.aiManager = new AIManager();
         this.aiManager.initialize();
+        this.abstractionManager = new AbstractionManager(this.context);
     }
 
     async resolveCustomTextEditor(
@@ -113,23 +116,48 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
         const isPseudo = this.isPseudocodeView.get(uri) || false;
         
         if (isPseudo) {
+            console.log('\n=== Handling Pseudocode Edit ===');
+            console.log('New text length:', newText.length);
+            
             // Convert pseudocode changes back to code
             const cached = codeMapManager.get(uri);
-            if (!cached) return;
-
-            let codeChanges = '';
-            for await (const chunk of this.aiManager.streamToCode(newText, cached.code, [])) {
-                codeChanges += chunk;
+            if (!cached) {
+                console.warn('No cached content found for:', uri);
+                return;
             }
 
-            // Apply changes to the document
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(
-                document.uri,
-                new vscode.Range(0, 0, document.lineCount, 0),
-                TextProcessor.cleanCodeResponse(codeChanges)
-            );
-            await vscode.workspace.applyEdit(edit);
+            try {
+                // Use AbstractionManager for proper diff-based code generation
+                const newCode = await this.abstractionManager.generateCode(newText, cached.pseudocode);
+                console.log('Generated new code:', {
+                    length: newCode.length,
+                    preview: newCode.slice(0, 100) + '...',
+                    changed: newCode !== cached.code
+                });
+
+                if (newCode === cached.code) {
+                    console.log('No changes in generated code, skipping update');
+                    return;
+                }
+
+                // Apply changes to the document
+                const edit = new vscode.WorkspaceEdit();
+                edit.replace(
+                    document.uri,
+                    new vscode.Range(0, 0, document.lineCount, 0),
+                    newCode
+                );
+
+                const success = await vscode.workspace.applyEdit(edit);
+                if (!success) {
+                    throw new Error('Failed to apply code changes');
+                }
+
+                console.log('Successfully applied code changes');
+            } catch (error) {
+                console.error('Error handling pseudocode edit:', error);
+                vscode.window.showErrorMessage(`Error updating code: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
     }
 
