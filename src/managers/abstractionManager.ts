@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import { AIManager } from './aiManager';
+import { LLMManager } from './llmManager';
 import { TextProcessor } from '../utils/textProcessor';
 import { DiffCalculator } from '../utils/diffCalculator';
 import { CodeChange, VersionedContent } from '../types';
 
 export class AbstractionManager {
-    private aiManager: AIManager;
+    private aiManager: LLMManager;
     private currentView: Map<string, 'code' | 'pseudocode'> = new Map();
     private codeMap: Map<string, VersionedContent> = new Map();
     private isInitialized = false;
     private isApplyingChanges = false;  // Add flag to track changes
 
     constructor(context: vscode.ExtensionContext) {
-        this.aiManager = new AIManager();
+        this.aiManager = new LLMManager();
         
         // Register status bar item to show initialization status
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);

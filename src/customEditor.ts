@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AIManager } from './managers/aiManager';
+import { LLMManager } from './managers/llmManager';
 import { TextProcessor } from './utils/textProcessor';
 import { codeMapManager } from './state/codeMap';
 import { CodeChange } from './types/index';
@@ -10,11 +10,11 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
     private isPseudocodeView: Map<string, boolean> = new Map();
     private webviewPanels: Map<string, vscode.WebviewPanel> = new Map();
     private documentListeners: Map<string, vscode.Disposable> = new Map();
-    private aiManager: AIManager;
+    private aiManager: LLMManager;
     private abstractionManager: AbstractionManager;
 
     constructor(private readonly context: vscode.ExtensionContext) {
-        this.aiManager = new AIManager();
+        this.aiManager = new LLMManager();
         this.aiManager.initialize();
         this.abstractionManager = new AbstractionManager(this.context);
     }
