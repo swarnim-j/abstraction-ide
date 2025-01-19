@@ -31,10 +31,7 @@ export const updatePseudocodePrompt: PromptFunction<UpdatePseudocodeParams> = ({
     return messages;
 };
 
-export async function updatePseudocode(code: string, pseudocode: string, changes: CodeChange[]): Promise<string> {
-    const llmManager = new LLMManager();
-    await llmManager.initialize();
-    
+export async function updatePseudocode(llm: LLMManager, code: string, pseudocode: string, changes: CodeChange[]): Promise<string> {
     const messages = updatePseudocodePrompt({ code, pseudocode, changes });
-    return llmManager.createCompletion(messages);
+    return llm.generate(messages);
 }

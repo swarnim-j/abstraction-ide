@@ -151,10 +151,12 @@ export class LLMFactory {
                     return this.createProvider('openai');
                 }
                 
-                return new OpenAIProvider({
+                const provider = new OpenAIProvider({
                     apiKey,
                     model
                 });
+                await provider.initialize();
+                return provider;
             }
 
             case 'anthropic': {
@@ -166,10 +168,12 @@ export class LLMFactory {
                     return this.createProvider('anthropic');
                 }
                 
-                return new AnthropicProvider({
+                const provider = new AnthropicProvider({
                     apiKey,
                     model
                 });
+                await provider.initialize();
+                return provider;
             }
             
             default:

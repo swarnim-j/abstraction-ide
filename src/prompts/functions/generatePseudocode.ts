@@ -30,24 +30,12 @@ export const generatePseudocodePrompt: PromptFunction<GeneratePseudocodeParams> 
     return messages;
 };
 
-export async function generatePseudocode(code: string): Promise<string> {
-    const llmManager = new LLMManager();
-    await llmManager.initialize();
-    
+export async function generatePseudocode(llm: LLMManager, code: string): Promise<string> {
     const messages = generatePseudocodePrompt({ code });
-    return llmManager.createCompletion(messages);
+    return llm.generate(messages);
 }
 
-export async function* streamGeneratePseudocode(code: string): AsyncGenerator<string> {
-    const llmManager = new LLMManager();
-    await llmManager.initialize();
-    
+export async function* streamGeneratePseudocode(llm: LLMManager, code: string): AsyncGenerator<string> {
     const messages = generatePseudocodePrompt({ code });
-    const response = await llmManager.createStreamingCompletion(messages);
-    
-    for await (const chunk of response) {
-        if (chunk.choices[0]?.delta?.content) {
-            yield chunk.choices[0].delta.content;
-        }
-    }
+    yield* llm.stream(messages);
 } 

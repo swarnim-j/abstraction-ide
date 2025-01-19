@@ -9,10 +9,10 @@ import { updateCode } from '../prompts/functions/updateCode';
 
 export class AbstractionManager {
     private aiManager: LLMManager;
-    private currentView: Map<string, 'code' | 'pseudocode'> = new Map();
     private codeMap: Map<string, VersionedContent> = new Map();
     private isInitialized = false;
     private isApplyingChanges = false;  // Add flag to track changes
+    private initializationPromise: Promise<void>;
 
     constructor(context: vscode.ExtensionContext) {
         this.aiManager = new LLMManager();
@@ -23,13 +23,15 @@ export class AbstractionManager {
         statusBarItem.show();
         
         // Single initialization with proper error handling
-        this.aiManager.initialize().then(() => {
+        this.initializationPromise = this.aiManager.initialize().then(() => {
+            this.isInitialized = true;
             statusBarItem.text = "$(check) Abstraction IDE Ready";
             setTimeout(() => statusBarItem.hide(), 3000);
         }).catch(error => {
             statusBarItem.text = "$(error) Abstraction IDE Failed";
             vscode.window.showErrorMessage('Failed to initialize AI Manager. Please check your API key.');
             setTimeout(() => statusBarItem.hide(), 3000);
+            throw error;
         });
         
         this.setupSaveHandler(context);
@@ -70,6 +72,7 @@ export class AbstractionManager {
 
             // Generate pseudocode changes using the diff
             const pseudocodeDiff = await updatePseudocode(
+                this.aiManager,
                 newCode,
                 mapping.pseudocode,
                 [{ type: 'modify' as const, content: codeDiff }]
@@ -133,15 +136,47 @@ export class AbstractionManager {
         }
     }
 
-    async ensureInitialized(): Promise<void> {
-        if (!this.aiManager.isInitialized()) {
-            await this.aiManager.initialize();
+    private async ensureInitialized(): Promise<void> {
+        if (!this.isInitialized) {
+            await this.initializationPromise;
         }
     }
 
-    private async withInitialization<T>(operation: () => Promise<T>): Promise<T> {
+    async generatePseudocode(content: string, onProgress: (content: string) => void): Promise<string> {
         await this.ensureInitialized();
-        return operation();
+        let pseudocode = '';
+        let chunks: string[] = [];
+
+        try {
+            for await (const chunk of streamGeneratePseudocode(this.aiManager, content)) {
+                chunks.push(chunk);
+                pseudocode = chunks.join('');
+                const partialContent = TextProcessor.cleanPseudocode(pseudocode);
+                onProgress(partialContent);
+            }
+
+            // Clean and return final pseudocode
+            const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
+            
+            // Store the original code and pseudocode mapping for both URIs
+            const uri = vscode.window.activeTextEditor?.document.uri;
+            if (uri) {
+                const mapping: VersionedContent = {
+                    code: content,
+                    pseudocode: finalPseudocode,
+                    lastEditTime: Date.now(),
+                    version: 1
+                };
+                // Store for both file and abstraction URIs
+                this.codeMap.set(uri.toString(), mapping);
+                this.codeMap.set(this.toAbstractionUri(uri).toString(), mapping);
+            }
+            
+            return finalPseudocode;
+        } catch (error) {
+            console.error('Error generating pseudocode:', error);
+            throw error;
+        }
     }
 
     dispose(): void {
@@ -208,44 +243,6 @@ export class AbstractionManager {
         }
     }
 
-    async generatePseudocode(content: string, onProgress: (content: string) => void): Promise<string> {
-        return this.withInitialization(async () => {
-            let pseudocode = '';
-            let chunks: string[] = [];
-
-            try {
-                for await (const chunk of streamGeneratePseudocode(content)) {
-                    chunks.push(chunk);
-                    pseudocode = chunks.join('');
-                    const partialContent = TextProcessor.cleanPseudocode(pseudocode);
-                    onProgress(partialContent);
-                }
-
-                // Clean and return final pseudocode
-                const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
-                
-                // Store the original code and pseudocode mapping for both URIs
-                const uri = vscode.window.activeTextEditor?.document.uri;
-                if (uri) {
-                    const mapping: VersionedContent = {
-                        code: content,
-                        pseudocode: finalPseudocode,
-                        lastEditTime: Date.now(),
-                        version: 1
-                    };
-                    // Store for both file and abstraction URIs
-                    this.codeMap.set(uri.toString(), mapping);
-                    this.codeMap.set(this.toAbstractionUri(uri).toString(), mapping);
-                }
-                
-                return finalPseudocode;
-            } catch (error) {
-                console.error('Error generating pseudocode:', error);
-                throw error;
-            }
-        });
-    }
-
     private async getOriginalCode(): Promise<string | undefined> {
         const uri = vscode.window.activeTextEditor?.document.uri;
         if (!uri) return undefined;
@@ -266,7 +263,7 @@ export class AbstractionManager {
         statusBarItem.show();
 
         try {
-            const newCode = await updateCode(pseudocode, originalCode, changes);
+            const newCode = await updateCode(this.aiManager, pseudocode, originalCode, changes);
 
             if (newCode === originalCode) {
                 statusBarItem.text = "$(info) No code changes needed";

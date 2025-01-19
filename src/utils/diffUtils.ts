@@ -1,20 +1,16 @@
 import { diff_match_patch } from 'diff-match-patch';
-import { PatchStream } from 'unidiff';
+import { createPatch, parsePatch, applyPatch } from 'diff';
 
 export class DiffUtils {
     private static dmp = new diff_match_patch();
-    private static patchStream = new PatchStream();
 
     /**
      * Generate a unified diff between two texts
      */
     static generateUnifiedDiff(originalText: string, newText: string): string {
-        const diffs = this.dmp.diff_main(originalText, newText);
-        this.dmp.diff_cleanupSemantic(diffs);
-        
-        // Convert to unified diff format
-        const patches = this.dmp.patch_make(originalText, diffs);
-        return this.dmp.patch_toText(patches);
+        // Use jsdiff's createPatch to get a proper unified diff
+        // We use 'file' as placeholder since we're diffing in-memory content
+        return createPatch('file', originalText, newText);
     }
 
     /**
@@ -22,7 +18,18 @@ export class DiffUtils {
      */
     static applyUnifiedDiff(originalText: string, unifiedDiff: string): string {
         try {
-            return this.patchStream.applyPatch(originalText, unifiedDiff);
+            const patches = parsePatch(unifiedDiff);
+            // Apply each patch in sequence
+            let result = originalText;
+            for (const patch of patches) {
+                const patchResult = applyPatch(result, patch);
+                if (patchResult === false) {
+                    console.error('Failed to apply patch');
+                    return originalText;
+                }
+                result = patchResult;
+            }
+            return result;
         } catch (error) {
             console.error('Error applying patch:', error);
             // Return original text if patch fails

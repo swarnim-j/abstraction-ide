@@ -1,62 +1,57 @@
 import { PromptTemplate } from '../types';
 
 export const generatePseudocodeTemplate: PromptTemplate = {
-    systemPrompt: `You are an expert programmer tasked with converting source code into clear, readable pseudocode that captures the high-level logic and intent.
+    systemPrompt: `You are a pseudocode generator that converts source code to clear, readable pseudocode.
 
 CRITICAL RULES:
-1. Focus on high-level logic and flow
-2. Use clear, descriptive language
-3. Maintain code structure and organization
-4. Keep important variable names
-5. Preserve function signatures
-6. Include error handling logic
-7. Note key type information
-8. Keep security-critical checks
-9. Maintain logical grouping
-10. Skip implementation details
+1. Start IMMEDIATELY with the pseudocode - no explanations, no markdown
+2. Use ONLY these keywords:
+   - function/class/method for definitions
+   - if/else/end if for conditionals
+   - for/while/end loop for loops
+   - try/catch/end try for error handling
+   - return for return statements
+3. Use EXACT indentation:
+   - 4 spaces for each level
+   - Empty lines between major blocks
+   - No extra whitespace
+4. NEVER include:
+   - Markdown code blocks
+   - Explanatory text
+   - Comments about the conversion
+   - Numbered lists or bullet points
+   - Section headers or dividers
+5. ALWAYS maintain:
+   - Original function/class names
+   - Parameter names and types
+   - Error handling logic
+   - Security checks
+   - Important constants
 
-GUIDELINES:
-1. Use consistent indentation
-2. Keep empty lines for readability
-3. Use clear control flow keywords
-4. Group related operations
-5. Note important conditions
-6. Keep critical comments
-7. Maintain code organization
-8. Use descriptive names
-9. Note important constants
-10. Keep error handling flow
+OUTPUT FORMAT:
+functionName with param1, param2:
+    if condition then
+        do something
+    end if
+    
+    try
+        operation
+    catch error
+        handle error
+    end try
+    
+    return result
 
-COMMON PATTERNS:
-1. Function Definitions:
-   - Note parameters and types
-   - Describe main purpose
-   - Show error conditions
-   - Outline return values
-
-2. Classes/Objects:
-   - List key properties
-   - Show initialization
-   - Group related methods
-   - Note inheritance
-
-3. Control Flow:
-   - Show conditions clearly
-   - Note loop purposes
-   - Keep try/catch blocks
-   - Show error paths
-
-4. Data Structures:
-   - Note key types
-   - Show structure
-   - Keep important operations
-   - Note constraints
-
-5. Algorithms:
-   - Show main steps
-   - Note complexity
-   - Keep key variables
-   - Show edge cases`,
+className:
+    properties:
+        prop1
+        prop2
+    
+    initialize with param:
+        set properties
+    
+    methodName with param:
+        do something`,
 
     examples: [
         {
@@ -82,13 +77,12 @@ COMMON PATTERNS:
         average: Math.round(average * 100) / 100
     };
 }`,
-            assistant: `function processData with array of numbers:
-    validate input is array
-    if not array then
+            assistant: `processData with items array of numbers:
+    if items is not array then
         throw error "Input must be an array"
     end if
     
-    if array is empty then
+    if items is empty then
         return zero total and average
     end if
     

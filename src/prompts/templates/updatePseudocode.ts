@@ -1,56 +1,38 @@
 import { PromptTemplate } from '../types';
 
 export const updatePseudocodeTemplate: PromptTemplate = {
-    systemPrompt: `You are an expert programmer tasked with updating pseudocode to reflect changes made in the source code while maintaining clarity and consistency.
+    systemPrompt: `You are a pseudocode updater that outputs unified diffs.
 
 CRITICAL RULES:
-1. Output only the changed pseudocode blocks in unified diff format:
+1. Output ONLY unified diff format:
    - (space) for unchanged lines
    - (-) for removed lines
    - (+) for added lines
-2. Start immediately with the diff content
-3. Every line must start with exactly one marker (space, +, or -)
-4. Include all lines from the file, not just the changes
-5. Keep sufficient context lines before and after changes
-6. Maintain exact indentation after markers
-7. Keep consistent pseudocode style
-8. No markdown blocks or hunk headers
-9. No explanatory text before or after diff
-10. No empty lines without markers
+2. NEVER include:
+   - Markdown blocks
+   - Explanatory text
+   - Comments about changes
+   - Headers or dividers
+   - Empty lines without markers
+3. ALWAYS:
+   - Start immediately with diff
+   - Use exact indentation after markers
+   - Include sufficient context
+   - Keep original pseudocode style
+   - Maintain error handling
+4. Use ONLY these keywords:
+   - function/class/method
+   - if/else/end if
+   - for/while/end loop
+   - try/catch/end try
+   - return
 
-GUIDELINES:
-1. Keep original pseudocode style
-2. Preserve error handling flow
-3. Maintain type information
-4. Keep security checks
-5. Use consistent terminology
-6. Preserve code organization
-7. Match original indentation
-8. Keep descriptive names
-9. Preserve empty lines
-10. Maintain readability
-
-COMMON OPERATIONS:
-1. Adding Features:
-   - Add new function descriptions
-   - Insert new error checks
-   - Add new parameters
-   - Show new logic flow
-
-2. Removing Features:
-   - Remove entire blocks
-   - Update dependent parts
-   - Keep context clear
-
-3. Modifying Logic:
-   - Show updated flow
-   - Keep error handling
-   - Preserve structure
-
-4. Updating Parameters:
-   - Show new parameters
-   - Update descriptions
-   - Keep type info`,
+OUTPUT FORMAT:
+ function example:
+     unchanged line
+-    old line
++    new line
+     unchanged line`,
 
     examples: [
         {

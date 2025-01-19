@@ -25,16 +25,13 @@ export const updateCodePrompt: PromptFunction<UpdateCodeParams> = ({ code, pseud
     // Add the actual user query
     messages.push({
         role: 'user',
-        content: `Original code:\n${code}\n\nPseudocode:\n${pseudocode}\n\nChanges:\n${JSON.stringify(changes, null, 2)}`
+        content: `Original code:\n${code}\n\nOriginal pseudocode:\n${pseudocode}\n\nChanges:\n${JSON.stringify(changes, null, 2)}`
     });
 
     return messages;
 };
 
-export async function updateCode(code: string, pseudocode: string, changes: CodeChange[]): Promise<string> {
-    const llmManager = new LLMManager();
-    await llmManager.initialize();
-    
+export async function updateCode(llm: LLMManager, code: string, pseudocode: string, changes: CodeChange[]): Promise<string> {
     const messages = updateCodePrompt({ code, pseudocode, changes });
-    return llmManager.createCompletion(messages);
+    return llm.generate(messages);
 }

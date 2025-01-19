@@ -13,23 +13,39 @@ export class LLMManager {
         return this.provider !== null;
     }
 
-    async createStreamingCompletion(messages: Message[]): Promise<AsyncIterable<StreamingResponse>> {
+    async generate(messages: Message[]): Promise<string> {
         if (!this.provider) {
             throw new Error('AI Manager not initialized');
         }
-        return this.provider.createStreamingCompletion(messages);
+
+        let result = '';
+        try {
+            for await (const chunk of this.provider.createStreamingCompletion(messages)) {
+                if (chunk.choices[0]?.delta?.content) {
+                    result += chunk.choices[0].delta.content;
+                }
+            }
+            return result;
+        } catch (error) {
+            console.error('Error in LLM generation:', error);
+            throw error;
+        }
     }
 
-    async createCompletion(messages: Message[]): Promise<string> {
+    async* stream(messages: Message[]): AsyncGenerator<string> {
         if (!this.provider) {
             throw new Error('AI Manager not initialized');
         }
-        let result = '';
-        for await (const chunk of this.provider.createStreamingCompletion(messages)) {
-            if (chunk.choices[0]?.delta?.content) {
-                result += chunk.choices[0].delta.content;
+
+        try {
+            for await (const chunk of this.provider.createStreamingCompletion(messages)) {
+                if (chunk.choices[0]?.delta?.content) {
+                    yield chunk.choices[0].delta.content;
+                }
             }
+        } catch (error) {
+            console.error('Error in LLM streaming:', error);
+            throw error;
         }
-        return result;
     }
 } 
