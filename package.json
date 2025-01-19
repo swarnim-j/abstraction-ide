@@ -81,14 +81,14 @@
       },
       {
         "command": "abstractionIde.acceptChanges",
-        "key": "cmd+y",
-        "mac": "cmd+y",
+        "key": "alt+y",
+        "mac": "alt+y",
         "when": "editorTextFocus"
       },
       {
         "command": "abstractionIde.rejectChanges",
-        "key": "cmd+n",
-        "mac": "cmd+n",
+        "key": "alt+r",
+        "mac": "alt+r",
         "when": "editorTextFocus"
       }
     ],

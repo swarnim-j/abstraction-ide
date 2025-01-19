@@ -5,7 +5,6 @@ export class TextProcessor {
     static cleanPseudocode(text: string): string {
         try {
             if (!text || typeof text !== 'string') {
-                console.warn('Invalid input to cleanPseudocode:', text);
                 return '';
             }
 
@@ -32,16 +31,9 @@ export class TextProcessor {
             });
             
             // Trim extra whitespace and newlines
-            const result = processedLines.join('\n').trim();
+            return processedLines.join('\n').trim();
             
-            // Validate output
-            if (!result) {
-                console.warn('cleanPseudocode produced empty result from input:', text);
-            }
-            
-            return result;
         } catch (error: unknown) {
-            console.error('Error in cleanPseudocode:', error);
             return ''; // Return empty string on error
         }
     }
@@ -49,14 +41,8 @@ export class TextProcessor {
     static cleanCodeResponse(text: string): string {
         try {
             if (!text || typeof text !== 'string') {
-                console.warn('Invalid input to cleanCodeResponse:', text);
                 return '';
             }
-
-            console.log('Cleaning code response:', {
-                inputLength: text.length,
-                hasMarkdown: text.includes('```')
-            });
 
             // Remove markdown code blocks if present
             text = text.replace(/```[\s\S]*?```/g, (match) => {
@@ -64,35 +50,17 @@ export class TextProcessor {
                     // Extract just the code from within the block
                     const lines = match.split('\n');
                     if (lines.length < 3) {
-                        console.warn('Invalid markdown block format:', match);
                         return '';
                     }
-                    const code = lines.slice(1, -1).join('\n');
-                    console.log('Extracted code from markdown block:', {
-                        originalLength: match.length,
-                        extractedLength: code.length
-                    });
-                    return code;
+                    return lines.slice(1, -1).join('\n');
                 } catch (error: unknown) {
-                    console.error('Error processing markdown block:', error);
                     return ''; // Skip invalid blocks
                 }
             });
 
-            const cleaned = text.trim();
-            console.log('Cleaned result:', {
-                outputLength: cleaned.length,
-                isEmpty: !cleaned.trim()
-            });
-
-            // Validate output
-            if (!cleaned) {
-                console.warn('cleanCodeResponse produced empty result from input:', text);
-            }
-
-            return cleaned;
+            return text.trim();
+            
         } catch (error: unknown) {
-            console.error('Error in cleanCodeResponse:', error);
             return ''; // Return empty string on error
         }
     }
@@ -141,7 +109,6 @@ export class TextProcessor {
             
             return { changes, hasContentChange };
         } catch (error: unknown) {
-            console.error('Error in extractChanges:', error);
             return { changes: [], hasContentChange: false };
         }
     }

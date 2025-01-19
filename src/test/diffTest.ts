@@ -31,18 +31,18 @@ function testDiffImplementations() {
     ];
 
     for (const test of testCases) {
-        console.log(`\n=== Testing: ${test.name} ===`);
-        
         // Generate diff with hunk headers
         const diff = DiffCalculator.calculateInternalDiff(test.oldCode, test.newCode);
-        console.log('\nDiff output:');
-        console.log(diff.join('\n'));
-
+        
         // Test applying the diff
         const newCode = DiffCalculator.applyDiff(test.oldCode, diff.join('\n'));
-        console.log('\nApplied diff result:');
-        console.log(newCode);
-        console.log('\nMatches expected:', newCode === test.newCode);
+        
+        // Verify result
+        if (newCode !== test.newCode) {
+            console.error(`Test failed: ${test.name}`);
+            console.error('Expected:', test.newCode);
+            console.error('Got:', newCode);
+        }
     }
 }
 

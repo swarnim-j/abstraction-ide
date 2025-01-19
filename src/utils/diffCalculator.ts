@@ -4,15 +4,6 @@ export class DiffCalculator {
      * Used internally for LLM context
      */
     static calculateInternalDiff(oldText: string, newText: string): string[] {
-        console.log('Input:', {
-            oldLength: oldText.length,
-            newLength: newText.length,
-            oldLines: oldText.split('\n').length,
-            newLines: newText.split('\n').length,
-            oldTextPreview: oldText.substring(0, 100),
-            newTextPreview: newText.substring(0, 100)
-        });
-
         // Split into lines for line-based diffing
         const oldLines = oldText.split('\n');
         const newLines = newText.split('\n');
@@ -103,16 +94,27 @@ export class DiffCalculator {
     }
 
     static applyDiff(originalText: string, diff: string): string {
-        // Clean up markdown formatting
-        diff = diff.replace(/```diff\n/g, '').replace(/```\n?/g, '');
+        // Clean up markdown formatting and extract only the diff content
+        const lines = diff.split('\n');
+        const diffLines: string[] = [];
         
-        // Split both texts into lines
-        const originalLines = originalText.split('\n');
+        // Only include lines that start with space, +, or -
+        for (const line of lines) {
+            if (!line) {
+                diffLines.push(line);
+            } else if (line[0] === ' ' || line[0] === '+' || line[0] === '-') {
+                diffLines.push(line);
+            }
+        }
+        
+        if (diffLines.length === 0) {
+            return originalText;
+        }
+        
+        // Process the diff lines
         const resultLines: string[] = [];
-        
-        // Process each line in the diff
-        const diffLines = diff.split('\n');
         let originalIndex = 0;
+        const originalLines = originalText.split('\n');
         
         for (const diffLine of diffLines) {
             if (!diffLine) {
@@ -140,14 +142,6 @@ export class DiffCalculator {
                     
                 case '+': // Added line - add to result
                     resultLines.push(content);
-                    break;
-                    
-                default:
-                    // Copy original line if no marker
-                    if (originalIndex < originalLines.length) {
-                        resultLines.push(originalLines[originalIndex]);
-                        originalIndex++;
-                    }
                     break;
             }
         }

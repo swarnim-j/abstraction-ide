@@ -4,8 +4,6 @@ import { AbstractionManager } from './managers/abstractionManager';
 import { codeMapManager } from './state/codeMap';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Abstraction IDE extension is now active!');
-
     // Initialize the abstraction manager
     const abstractionManager = new AbstractionManager(context);
 
@@ -28,7 +26,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the abstraction scheme
     const emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
-    
     const virtualFs = {
         onDidChangeFile: emitter.event,
         watch: () => ({ dispose: () => {} }),
@@ -41,12 +38,10 @@ export function activate(context: vscode.ExtensionContext) {
         readDirectory: () => [],
         createDirectory: () => {},
         readFile: async (uri: vscode.Uri) => {
-            console.log('Virtual FS: Reading file:', uri.toString());
             const content = await provider.provideTextDocumentContent(uri);
             return Buffer.from(content);
         },
         writeFile: async (uri: vscode.Uri, content: Uint8Array) => {
-            console.log('Virtual FS: Writing file:', uri.toString());
             const fileUri = uri.with({ scheme: 'file' });
             const newContent = content.toString();
             
@@ -61,8 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
                 });
                 provider.update();
                 emitter.fire([{ type: vscode.FileChangeType.Changed, uri }]);
-            } else {
-                console.log('No cache found for:', fileUri.toString());
             }
         },
         delete: () => {},

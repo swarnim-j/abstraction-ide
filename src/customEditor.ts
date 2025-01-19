@@ -99,7 +99,7 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                 
                 if (!cached || !hasContentChange) {
                     // If no cache or no meaningful changes, do full generation
-                    await this.updatePseudocode(document, newText, true);
+                    await this.updatePseudocode(document, newText, true, []);
                 } else {
                     // Do incremental update based on changes
                     await this.updatePseudocode(document, newText, false, meaningfulChanges);
@@ -127,13 +127,17 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
             }
 
             try {
+                // Extract changes from pseudocode
+                const { changes } = TextProcessor.extractChanges(cached.pseudocode, newText);
+                
+                // Get editor for the document
+                const editor = await vscode.window.showTextDocument(document, { preview: false });
+                
                 // Use AbstractionManager for proper diff-based code generation
-                const newCode = await this.abstractionManager.generateCode(newText, cached.pseudocode);
-                console.log('Generated new code:', {
-                    length: newCode.length,
-                    preview: newCode.slice(0, 100) + '...',
-                    changed: newCode !== cached.code
-                });
+                const newCode = await this.abstractionManager.generateCode(newText, cached.code, changes, editor);
+                if (!newCode) {
+                    throw new Error('Failed to generate code changes');
+                }
 
                 if (newCode === cached.code) {
                     console.log('No changes in generated code, skipping update');
@@ -161,67 +165,72 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
         }
     }
 
-    private async updatePseudocode(
-        document: vscode.TextDocument, 
-        newCode: string, 
-        fullGeneration: boolean = false,
-        changes: CodeChange[] = []
-    ): Promise<void> {
+    private async updatePseudocode(document: vscode.TextDocument, newText: string, fullGeneration: boolean, changes: CodeChange[] = []): Promise<void> {
         const uri = document.uri.toString();
-        const cached = codeMapManager.get(uri);
         
-        let pseudocode = '';
-        if (fullGeneration) {
-            // Do full generation
-            console.log('Doing full pseudocode generation');
-            for await (const chunk of this.aiManager.streamPseudocode(newCode)) {
-                pseudocode += chunk;
+        try {
+            if (fullGeneration) {
+                // Do full generation
+                const pseudocode = await this.abstractionManager.generatePseudocode(newText, () => {});
+                if (!pseudocode) {
+                    throw new Error('Failed to generate pseudocode');
+                }
+                codeMapManager.set(uri, {
+                    code: newText,
+                    pseudocode: pseudocode,
+                    lastEditTime: Date.now(),
+                    version: (codeMapManager.get(uri)?.version || 0) + 1
+                });
+            } else {
+                // Do incremental update
+                const cached = codeMapManager.get(uri);
+                if (cached?.pseudocode) {
+                    const editor = await vscode.window.showTextDocument(document, { preview: false });
+                    const newPseudocode = await this.abstractionManager.generateCode(cached.pseudocode, newText, changes, editor);
+                    if (newPseudocode) {
+                        codeMapManager.set(uri, {
+                            code: newText,
+                            pseudocode: newPseudocode,
+                            lastEditTime: Date.now(),
+                            version: cached.version + 1
+                        });
+                    }
+                }
             }
-        } else {
-            // Do incremental update
-            console.log('Doing incremental pseudocode update');
-            const oldPseudocode = cached?.pseudocode || '';
-            for await (const chunk of this.aiManager.streamPseudocodeUpdate(newCode, oldPseudocode, changes)) {
-                pseudocode += chunk;
-            }
+        } catch (error) {
+            console.error('Error updating pseudocode:', error);
+            vscode.window.showErrorMessage(`Error updating pseudocode: ${error instanceof Error ? error.message : String(error)}`);
         }
-        
-        pseudocode = TextProcessor.cleanPseudocode(pseudocode);
-
-        // Update cache
-        codeMapManager.set(uri, {
-            code: newCode,
-            pseudocode,
-            lastEditTime: Date.now(),
-            version: (cached?.version || 0) + 1
-        });
     }
 
     private async updateContent(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): Promise<void> {
         const uri = document.uri.toString();
         const isPseudo = this.isPseudocodeView.get(uri) || false;
-        const cached = codeMapManager.get(uri);
-        
         let content = '';
         let title = document.fileName;
 
-        if (isPseudo) {
-            // Show pseudocode view
-            if (cached?.pseudocode) {
-                content = cached.pseudocode;
+        try {
+            if (isPseudo) {
+                const cached = codeMapManager.get(uri);
+                if (cached?.pseudocode) {
+                    content = cached.pseudocode;
+                } else {
+                    await this.updatePseudocode(document, document.getText(), true, []);
+                    const updated = codeMapManager.get(uri);
+                    content = updated?.pseudocode || '';
+                }
+                title += ' (Pseudocode)';
             } else {
-                await this.updatePseudocode(document, document.getText());
-                const updated = codeMapManager.get(uri);
-                content = updated?.pseudocode || '';
+                content = document.getText();
             }
-            title += ' (Pseudocode)';
-        } else {
-            // Show code view
-            content = document.getText();
-        }
 
-        webviewPanel.title = title;
-        webviewPanel.webview.html = this.getHtmlForWebview(content, isPseudo);
+            // Update webview content
+            webviewPanel.title = title;
+            webviewPanel.webview.html = this.getHtmlForWebview(content, isPseudo);
+        } catch (error) {
+            console.error('Error updating content:', error);
+            vscode.window.showErrorMessage(`Error updating content: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     private getHtmlForWebview(content: string, isPseudo: boolean): string {

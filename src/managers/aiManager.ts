@@ -12,7 +12,6 @@ export class AIManager {
 
     async initialize(): Promise<void> {
         if (this.initialized) {
-            console.log('AIManager already initialized');
             return;
         }
 
@@ -20,7 +19,6 @@ export class AIManager {
             this.provider = await LLMFactory.createProvider();
             await this.provider.initialize();
             this.initialized = true;
-            console.log('AIManager initialized successfully');
         } catch (error) {
             console.error('Error initializing AIManager:', error);
             throw error;
@@ -39,8 +37,6 @@ export class AIManager {
     }
 
     async *streamPseudocode(content: string, onProgress?: (content: string) => void): AsyncGenerator<string> {
-        console.log('streamPseudocode called with content length:', content.length);
-
         const messages = [
             {
                 role: 'system' as const,
@@ -53,7 +49,6 @@ export class AIManager {
         ];
 
         try {
-            console.log('Creating streaming completion');
             const stream = await this.createStreamingCompletion(messages);
             let totalContent = '';
 
@@ -67,8 +62,6 @@ export class AIManager {
                     yield content;
                 }
             }
-
-            console.log('Stream completed, final content length:', totalContent.length);
             
             if (!totalContent.trim()) {
                 console.error('No content generated from API');
@@ -81,12 +74,6 @@ export class AIManager {
     }
 
     async *streamPseudocodeUpdate(code: string, originalPseudocode: string, changes: any[] = []): AsyncGenerator<string> {
-        console.log('streamPseudocodeUpdate called with:', {
-            codeLength: code.length,
-            originalPseudocodeLength: originalPseudocode.length,
-            changesCount: changes.length
-        });
-
         const messages = [
             {
                 role: 'system' as const,
@@ -99,11 +86,6 @@ export class AIManager {
         ];
 
         try {
-            console.log('Creating streaming completion with message lengths:', {
-                systemPrompt: messages[0].content.length,
-                userPrompt: messages[1].content.length
-            });
-
             const stream = await this.createStreamingCompletion(messages);
             let totalContent = '';
             
@@ -115,8 +97,6 @@ export class AIManager {
                 }
             }
             
-            console.log('Stream completed, final content length:', totalContent.length);
-
             if (!totalContent.trim()) {
                 console.error('No content generated from API');
                 throw new Error('No content generated from API');
@@ -132,12 +112,6 @@ export class AIManager {
         originalCode: string,
         changes: CodeChange[]
     ): AsyncGenerator<string> {
-        console.log('streamToCode called with:', {
-            pseudocodeLength: pseudocode.length,
-            originalCodeLength: originalCode.length,
-            changesCount: changes.length
-        });
-
         const messages = [
             {
                 role: 'system' as const,
@@ -150,11 +124,6 @@ export class AIManager {
         ];
 
         try {
-            console.log('Creating streaming completion with message lengths:', {
-                systemPrompt: messages[0].content.length,
-                userPrompt: messages[1].content.length
-            });
-
             const stream = await this.createStreamingCompletion(messages);
             let totalContent = '';
             
@@ -166,8 +135,6 @@ export class AIManager {
                 }
             }
             
-            console.log('Stream completed, final content length:', totalContent.length);
-
             if (!totalContent.trim()) {
                 console.error('No content generated from API');
                 throw new Error('No content generated from API');

@@ -151,7 +151,7 @@ class TimeSeriesProcessor implements DataProcessor for TimePoints:
         
         if not enough valid points for window then
             return failure with "Insufficient valid points"
-        end if
+    end if
         
         try:
             apply moving average to points
