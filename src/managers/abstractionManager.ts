@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { AIManager } from './aiManager';
 import { TextProcessor } from '../utils/textProcessor';
 import { DiffCalculator } from '../utils/diffCalculator';
-import { CodeChange } from '../types';
+import { CodeChange, VersionedContent } from '../types';
 
 export class AbstractionManager {
     private aiManager: AIManager;
     private currentView: Map<string, 'code' | 'pseudocode'> = new Map();
-    private codeMap: Map<string, { code: string; pseudocode: string }> = new Map();
+    private codeMap: Map<string, VersionedContent> = new Map();
+    private isInitialized = false;
+    private isApplyingChanges = false;  // Add flag to track changes
 
     constructor(context: vscode.ExtensionContext) {
         this.aiManager = new AIManager();
@@ -32,11 +34,18 @@ export class AbstractionManager {
     }
 
     private async handleCodeSave(document: vscode.TextDocument): Promise<void> {
+        // Skip if we're already applying changes
+        if (this.isApplyingChanges) {
+            return;
+        }
+
         const uri = document.uri;
         const newCode = document.getText();
         const abstractionUri = this.toAbstractionUri(uri);
         
         try {
+            this.isApplyingChanges = true;  // Set flag before applying changes
+            
             // Get the original mapping
             const mapping = this.codeMap.get(abstractionUri.toString());
             if (!mapping) {
@@ -83,9 +92,11 @@ export class AbstractionManager {
             }
 
             // Update the mapping for both URIs first
-            const newMapping = {
+            const newMapping: VersionedContent = {
                 code: newCode,
-                pseudocode: newPseudocode
+                pseudocode: newPseudocode,
+                lastEditTime: Date.now(),
+                version: (mapping.version || 0) + 1
             };
             this.codeMap.set(abstractionUri.toString(), newMapping);
             this.codeMap.set(uri.toString(), newMapping);
@@ -117,6 +128,8 @@ export class AbstractionManager {
             statusBarItem.show();
             setTimeout(() => statusBarItem.hide(), 3000);
             vscode.window.showErrorMessage(`Error updating pseudocode: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.isApplyingChanges = false;  // Reset flag after changes
         }
     }
 
@@ -214,9 +227,11 @@ export class AbstractionManager {
                 // Store the original code and pseudocode mapping for both URIs
                 const uri = vscode.window.activeTextEditor?.document.uri;
                 if (uri) {
-                    const mapping = {
+                    const mapping: VersionedContent = {
                         code: content,
-                        pseudocode: finalPseudocode
+                        pseudocode: finalPseudocode,
+                        lastEditTime: Date.now(),
+                        version: 1
                     };
                     // Store for both file and abstraction URIs
                     this.codeMap.set(uri.toString(), mapping);
@@ -241,7 +256,7 @@ export class AbstractionManager {
         return originalMapping.code;
     }
 
-    getCodeMapping(uri: string): { code: string; pseudocode: string } | undefined {
+    getCodeMapping(uri: string): VersionedContent | undefined {
         return this.codeMap.get(uri);
     }
 

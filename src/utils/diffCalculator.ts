@@ -97,12 +97,23 @@ export class DiffCalculator {
         // Clean up markdown formatting and extract only the diff content
         const lines = diff.split('\n');
         const diffLines: string[] = [];
+        let inDiffBlock = false;
         
         // Only include lines that start with space, +, or -
+        // Skip markdown blocks and explanatory text
         for (const line of lines) {
-            if (!line) {
-                diffLines.push(line);
-            } else if (line[0] === ' ' || line[0] === '+' || line[0] === '-') {
+            if (line.startsWith('```')) {
+                inDiffBlock = !inDiffBlock;
+                continue;
+            }
+            
+            // Skip lines that don't start with a valid diff marker
+            if (!line || !line.trim()) {
+                continue;
+            }
+            
+            const firstChar = line[0];
+            if (firstChar === ' ' || firstChar === '+' || firstChar === '-') {
                 diffLines.push(line);
             }
         }
@@ -117,18 +128,17 @@ export class DiffCalculator {
         const originalLines = originalText.split('\n');
         
         for (const diffLine of diffLines) {
-            if (!diffLine) {
-                resultLines.push('');
-                originalIndex++;
-                continue;
-            }
-            
             const marker = diffLine[0];
             const content = diffLine.slice(1);
-
+            
             switch (marker) {
                 case ' ': // Context line - should match original
                     if (originalIndex < originalLines.length) {
+                        if (originalLines[originalIndex].trim() !== content.trim()) {
+                            // Context mismatch - abort and return original
+                            console.error('Context mismatch at line', originalIndex + 1);
+                            return originalText;
+                        }
                         resultLines.push(originalLines[originalIndex]);
                         originalIndex++;
                     }
@@ -136,6 +146,11 @@ export class DiffCalculator {
                     
                 case '-': // Removed line - skip in original
                     if (originalIndex < originalLines.length) {
+                        if (originalLines[originalIndex].trim() !== content.trim()) {
+                            // Context mismatch - abort and return original
+                            console.error('Context mismatch at line', originalIndex + 1);
+                            return originalText;
+                        }
                         originalIndex++;
                     }
                     break;

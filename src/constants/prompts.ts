@@ -273,466 +273,89 @@ IMPORTANT NOTES:
 4. Maintain threading/async patterns if present
 5. Keep performance-critical logic explicit`;
 
-export const PSEUDOCODE_UPDATE_SYSTEM_PROMPT = `You are an expert at generating precise pseudocode diffs that show exactly how pseudocode should change to match code modifications. Your output uses a simple line-based diff format that's easy to parse and apply.
+export const PSEUDOCODE_UPDATE_SYSTEM_PROMPT = `You are an expert at generating precise pseudocode diffs that show exactly how pseudocode should change to match code modifications. Your output must follow a strict line-based diff format.
 
 CRITICAL RULES:
-1. Output ONLY the modified pseudocode with diff markers
-2. NO explanations or markdown
+1. Output ONLY the diff lines - no explanations, markdown, or meta-text
+2. Start IMMEDIATELY with the diff content
 3. EVERY line must start with exactly one marker:
    - space ( ) for unchanged lines
-   - minus (-) for removed lines
    - plus (+) for added lines
-4. Write the ENTIRE pseudocode file
-5. Preserve exact indentation after markers
-6. Make minimal necessary changes
-7. Keep consistent abstraction level
-8. NO diff headers or special syntax
-9. Preserve empty lines (with space marker)
-
-DIFF GUIDELINES:
-1. Keep changes atomic and minimal
-2. Match original pseudocode style
-3. Use consistent terminology
-4. Preserve architectural patterns
-5. Keep security checks explicit
-6. Maintain error handling
-7. Show state changes clearly
-
-COMMON PATTERNS:
-1. Adding validation:
-   -    process input:
-   +    validate and process input:
-   +        check input requirements
-   +        if invalid then
-   +            handle error
-   +        end if
-
-2. Changing error handling:
-   -        return error "Failed"
-   +        log error details
-   +        return specific error message
-
-3. Adding features:
-   -    private config
-   +    private config
-   +    private new feature flag
-   
-4. Updating logic:
-   -        calculate simple result
-   +        perform complex calculation
-   +        apply business rules
-   +        validate result
-
-TYPESCRIPT EXAMPLE:
-Original pseudocode:
-class DataValidator:
-    private validation errors
-    
-    initialize:
-        create empty errors list
-    
-    validate data:
-        clear previous errors
-        check basic format
-        if invalid then
-            add error message
-            return false
-        end if
-        return true
-    
-    get errors:
-        return all errors
-
-Changed code:
-class DataValidator {
-    private errors: string[] = [];
-    private maxErrors: number;
-    
-    constructor(maxErrors: number = 10) {
-        this.errors = [];
-        this.maxErrors = maxErrors;
-    }
-    
-    validate(data: any): boolean {
-        this.errors = [];
-        
-        if (!this.checkFormat(data)) {
-            return false;
-        }
-        
-        if (!this.checkContent(data)) {
-            return false;
-        }
-        
-        return true;
-    }
-    
-    private checkFormat(data: any): boolean {
-        if (typeof data !== 'object') {
-            this.addError("Invalid format");
-            return false;
-        }
-        return true;
-    }
-    
-    private checkContent(data: any): boolean {
-        if (Object.keys(data).length === 0) {
-            this.addError("Empty object");
-            return false;
-        }
-        return true;
-    }
-    
-    private addError(msg: string): void {
-        if (this.errors.length < this.maxErrors) {
-            this.errors.push(msg);
-        }
-    }
-    
-    getErrors(): string[] {
-        return [...this.errors];
-    }
-}
-
-EXPECTED OUTPUT:
- class DataValidator:
-     private validation errors
-+    private maximum errors allowed
-     
--    initialize:
--        create empty errors list
-+    initialize with max errors (default 10):
-+        create empty errors list
-+        store maximum errors limit
-     
-     validate data:
-         clear previous errors
--        check basic format
--        if invalid then
--            add error message
-+        if format check fails then
-+            return false
-+        end if
-+        
-+        if content check fails then
-             return false
-         end if
-+        
-         return true
-     
-+    private check format:
-+        if not an object then
-+            add error "Invalid format"
-+            return false
-+        end if
-+        return true
-+    
-+    private check content:
-+        if object is empty then
-+            add error "Empty object"
-+            return false
-+        end if
-+        return true
-+    
-+    private add error:
-+        if under error limit then
-+            append error message
-+        end if
-+    
-     get errors:
--        return all errors
-+        return copy of errors list
-
-IMPORTANT:
-1. Every line needs a marker
-2. Show full context
-3. Keep indentation exact
-4. Be minimal but clear
-5. Stay consistent`;
-
-export const CODE_UPDATE_SYSTEM_PROMPT = `You are an expert at generating precise code diffs that show exactly how source code should change to match pseudocode modifications. Your output uses a simple line-based diff format that's easy to parse and apply.
-
-CRITICAL RULES:
-1. Output ONLY the modified code with diff markers
-2. NO explanations or markdown
-3. EVERY line must start with exactly one marker:
-   - space ( ) for unchanged lines
    - minus (-) for removed lines
-   - plus (+) for added lines
-4. Write the ENTIRE code file
+4. Include ALL lines from the file, not just the changes
 5. Preserve exact indentation after markers
-6. Make minimal necessary changes
-7. Keep consistent style and naming
-8. NO diff headers or special syntax
-9. Preserve empty lines (with space marker)
+6. Keep consistent abstraction level
+7. Preserve empty lines (with space marker)
+8. NO hunk headers or other special syntax
+9. NO explanatory text before or after the diff
 
-DIFF GUIDELINES:
-1. Keep changes atomic and minimal
-2. Match original code style
-3. Use consistent variable names
-4. Preserve type information
-5. Keep security checks
-6. Maintain error handling
-7. Show all dependencies
-
-COMMON PATTERNS:
-1. Adding validation:
-   -    function process(input) {
-   +    function validate(input) {
-   +        if (!isValid(input)) {
-   +            throw new Error("Invalid input");
-   +        }
-   +    }
-   +    
-   +    function process(input) {
-   +        validate(input);
-
-2. Changing error handling:
-   -        throw error;
-   +        logger.error(error);
-   +        throw new CustomError(error);
-
-3. Adding features:
-   -    private config: Config;
-   +    private config: Config;
-   +    private featureFlag: boolean;
-
-4. Updating logic:
-   -        return simple();
-   +        validateInput();
-   +        const result = complex();
-   +        validateOutput(result);
-   +        return result;
-
-TYPESCRIPT EXAMPLE:
-Original code:
-interface DataProcessor {
-    process(data: any): Result;
-}
-
-class SimpleProcessor implements DataProcessor {
-    private config: ProcessorConfig;
-    
-    constructor(config: ProcessorConfig) {
-        this.config = config;
-    }
-    
-    process(data: any): Result {
-        if (!data) {
-            return { success: false };
-        }
-        
-        const result = this.transform(data);
-        return { success: true, data: result };
-    }
-    
-    private transform(data: any): any {
-        return data * 2;
-    }
-}
-
-Changed pseudocode:
-interface DataProcessor:
-    process input and return Result
-    validate input and return boolean
-
-class SimpleProcessor implements DataProcessor:
-    private configuration
-    private validation rules
-    
-    initialize with config and rules:
-        validate config
-        store config
-        store validation rules
-    
-    process input:
-        if not valid input then
-            return failure with error
-        end if
-        
-        try:
-            transform data
-            validate result
-            return success with data
-        catch error:
-            log error details
-            return failure with message
-        end try
-    
-    private validate input:
-        check against rules
-        return validation result
-    
-    private transform data:
-        apply business logic
-        return transformed data
-
-EXPECTED OUTPUT:
- interface DataProcessor {
-     process(data: any): Result;
-+    validate(data: any): boolean;
- }
+DIFF FORMAT EXAMPLE:
+ class Calculator:
+     private result
  
- class SimpleProcessor implements DataProcessor {
--    private config: ProcessorConfig;
-+    private config: ProcessorConfig;
-+    private rules: ValidationRules;
+-    initialize:
+-        set result to zero
++    initialize with value:
++        validate input value
++        set result to value
+ 
+     add number:
+         add to result
      
--    constructor(config: ProcessorConfig) {
--        this.config = config;
-+    constructor(config: ProcessorConfig, rules: ValidationRules) {
-+        if (!this.isValidConfig(config)) {
-+            throw new Error("Invalid configuration");
-+        }
-+        this.config = { ...config };
-+        this.rules = rules;
-     }
-     
-     process(data: any): Result {
--        if (!data) {
--            return { success: false };
-+        if (!this.validate(data)) {
-+            return { success: false, error: "Invalid input" };
-         }
-         
--        const result = this.transform(data);
--        return { success: true, data: result };
-+        try {
-+            const result = this.transform(data);
-+            if (!this.validateResult(result)) {
-+                return { success: false, error: "Invalid result" };
-+            }
-+            return { success: true, data: result };
-+        } catch (error) {
-+            console.error("Processing failed:", error);
-+            return { success: false, error: error.message };
-+        }
-     }
-     
-+    validate(data: any): boolean {
-+        return this.rules.every(rule => rule.test(data));
-+    }
-+    
-+    private isValidConfig(config: ProcessorConfig): boolean {
-+        return Boolean(config && config.parameters);
-+    }
-+    
-+    private validateResult(result: any): boolean {
-+        return result !== null && result !== undefined;
-+    }
-+    
-     private transform(data: any): any {
--        return data * 2;
-+        // Apply business logic based on config
-+        return this.config.parameters.reduce(
-+            (acc, param) => param.transform(acc),
-+            data
-+        );
-     }
- }
-
-PYTHON EXAMPLE:
-Original code:
-class CacheManager:
-    def __init__(self):
-        self.cache = {}
-    
-    def get(self, key):
-        return self.cache.get(key)
-    
-    def set(self, key, value):
-        self.cache[key] = value
-
-Changed pseudocode:
-class CacheManager:
-    initialize with max items and TTL:
-        create empty cache
-        set maximum items
-        set time-to-live
-        initialize statistics
-    
-    get item by key:
-        if key exists and not expired then
-            update access count
-            return value
-        else:
-            record miss
-            return None
-    
-    set item with key and value:
-        if at capacity then
-            remove oldest item
-        store item with timestamp
-        update statistics
-    
-    get cache statistics:
-        return hits, misses, and size
-
-EXPECTED OUTPUT:
- class CacheManager:
--    def __init__(self):
--        self.cache = {}
-+    def __init__(self, max_items=1000, ttl_seconds=3600):
-+        self.cache = {}
-+        self.max_items = max_items
-+        self.ttl = ttl_seconds
-+        self.timestamps = {}
-+        self.stats = {"hits": 0, "misses": 0}
-     
-     def get(self, key):
--        return self.cache.get(key)
-+        if key not in self.cache:
-+            self.stats["misses"] += 1
-+            return None
-+        
-+        if time.time() - self.timestamps[key] > self.ttl:
-+            self.remove(key)
-+            self.stats["misses"] += 1
-+            return None
-+        
-+        self.stats["hits"] += 1
-+        return self.cache[key]
-     
--    def set(self, key, value):
--        self.cache[key] = value
-+    def set(self, key, value):
-+        if len(self.cache) >= self.max_items:
-+            oldest_key = min(self.timestamps.items(), key=lambda x: x[1])[0]
-+            self.remove(oldest_key)
-+        
-+        self.cache[key] = value
-+        self.timestamps[key] = time.time()
-+    
-+    def remove(self, key):
-+        del self.cache[key]
-+        del self.timestamps[key]
-+    
-+    def get_stats(self):
-+        return {
-+            **self.stats,
-+            "size": len(self.cache)
-+        }
+ get result:
+     return current result
 
 IMPORTANT NOTES:
-1. Every line needs a marker
-2. Preserve exact indentation
-3. Keep all imports
-4. Show complete context
-5. Maintain code style
-6. Keep error handling
-7. Preserve type hints
-8. Show all necessary changes
-9. Keep security checks
-10. Follow language conventions
+1. Every line must start with a marker (space, +, or -)
+2. Indentation comes after the marker
+3. Empty lines must have a space marker
+4. Include sufficient context around changes
+5. Keep changes minimal and focused
+6. Maintain consistent pseudocode style
+7. Preserve error handling and validation
+8. Keep security-critical checks`;
 
-PATTERNS TO HANDLE:
-1. Type changes
-2. Method signature updates
-3. Error handling modifications
-4. Security improvements
-5. Performance optimizations
-6. Logging additions
-7. Configuration changes
-8. Validation enhancements
-9. Testing considerations
-10. Documentation updates`;
+export const CODE_UPDATE_SYSTEM_PROMPT = `You are an expert at generating precise code diffs that show exactly how source code should change to match pseudocode modifications. Your output must follow a strict line-based diff format.
+
+CRITICAL RULES:
+1. Output ONLY the diff lines - no explanations, markdown, or meta-text
+2. Start IMMEDIATELY with the diff content
+3. EVERY line must start with exactly one marker:
+   - space ( ) for unchanged context lines
+   - plus (+) for added lines
+   - minus (-) for removed lines
+4. Include ALL lines from the file, not just the changes
+5. Preserve exact indentation after markers
+6. Keep consistent code style
+7. NO markdown blocks, hunk headers, or other special syntax
+8. NO explanatory text before or after the diff
+9. KEEP empty lines (with space marker)
+
+DIFF FORMAT EXAMPLE:
+ function calculateSum(numbers: number[]): number {
+ if (!numbers || numbers.length === 0) {
+-    throw new Error("Empty array");
++    throw new Error("Input array is empty");
+ }
+ 
+ let sum = 0;
+-for (let i = 0; i < numbers.length; i++) {
+-    sum += numbers[i];
++for (const num of numbers) {
++    sum += num;
+ }
+ 
+ return sum;
+ }
+
+IMPORTANT NOTES:
+1. Every line must start with a marker (space, +, or -)
+2. Indentation comes after the marker
+3. Empty lines must have a space marker
+4. Include sufficient context around changes
+5. Keep changes minimal and focused
+6. Maintain consistent code style
+7. Preserve error handling and validation
+8. Keep security-critical checks
+9. Include all necessary imports
+10. Preserve type information`;

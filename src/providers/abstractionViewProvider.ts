@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AbstractionManager } from '../managers/abstractionManager';
 import { codeMapManager } from '../state/codeMap';
 import { TextProcessor } from '../utils/textProcessor';
+import { VersionedContent } from '../types';
 
 export class AbstractionViewProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -13,6 +14,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     private statusBarItem: vscode.StatusBarItem;
     private pendingChanges = new Map<string, string>();
     private initialGenerationInProgress = new Map<string, boolean>();
+    private isApplyingChanges = false;  // Add flag to track changes
     
     constructor(private abstractionManager: AbstractionManager) {
         // Remove real-time document change listener
@@ -99,89 +101,67 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     }
 
     private async handlePseudocodeSave(document: vscode.TextDocument): Promise<void> {
+        // Skip if we're already applying changes
+        if (this.isApplyingChanges) {
+            return;
+        }
+
         const fileUri = document.uri.with({ scheme: 'file' });
         const content = document.getText();
         
         await this.withLock(fileUri.toString(), async () => {
             try {
+                this.isApplyingChanges = true;
+                
                 // Validate content before proceeding
                 if (!content.trim()) {
                     throw new Error('Cannot save empty pseudocode');
                 }
 
-                // Update cache
-                const cached = codeMapManager.get(fileUri.toString());
-                if (cached) {
-                    codeMapManager.set(fileUri.toString(), {
-                        ...cached,
-                        pseudocode: content,
-                        lastEditTime: Date.now(),
-                        version: cached.version + 1
-                    });
+                // Get the original pseudocode from the code map
+                const uri = document.uri.toString();
+                const originalMapping = this.abstractionManager.getCodeMapping(uri);
+                if (!originalMapping) {
+                    throw new Error('No original mapping found');
                 }
 
-                // Generate corresponding code changes
-                console.log('Generating code from saved pseudocode');
-                let newCode: string;
-                try {
-                    // Get the original pseudocode from the code map
-                    const uri = document.uri.toString();
-                    const originalMapping = this.abstractionManager.getCodeMapping(uri);
-                    if (!originalMapping) {
-                        console.error('No original mapping found for URI:', uri);
-                        return;
-                    }
-
-                    // Generate code from pseudocode changes
-                    const changes = TextProcessor.extractChanges(originalMapping.pseudocode, content).changes;
-                    const editor = await vscode.window.showTextDocument(fileUri, { preview: false });
-                    const generatedCode = await this.abstractionManager.generateCode(content, originalMapping.code, changes, editor);
-                    if (!generatedCode) {
-                        throw new Error('No code changes were generated');
-                    }
-                    newCode = generatedCode;
-                } catch (error: unknown) {
-                    console.error('Error in code generation:', error);
-                    throw new Error(`Failed to generate code: ${error instanceof Error ? error.message : String(error)}`);
-                }
-
-                if (!newCode?.trim()) {
-                    throw new Error('Generated code is empty');
-                }
-
-                // Create and validate edit
-                const edit = new vscode.WorkspaceEdit();
-                const targetDoc = await vscode.workspace.openTextDocument(fileUri);
+                // Generate code from pseudocode changes
+                const changes = TextProcessor.extractChanges(originalMapping.pseudocode, content).changes;
                 
-                edit.replace(
-                    fileUri,
-                    new vscode.Range(
-                        0,
-                        0,
-                        targetDoc.lineCount,
-                        0
-                    ),
-                    newCode
-                );
-
-                // Apply edit with error handling
-                let success: boolean;
-                try {
-                    success = await vscode.workspace.applyEdit(edit);
-                } catch (error: unknown) {
-                    console.error('Error applying edit:', error);
-                    throw new Error(`Failed to apply code changes: ${error instanceof Error ? error.message : String(error)}`);
+                // Get editor but don't show it (keep it in background)
+                const codeDocument = await vscode.workspace.openTextDocument(fileUri);
+                const editor = await vscode.window.showTextDocument(codeDocument, { 
+                    preview: false,
+                    preserveFocus: true,  // Don't switch focus to code editor
+                    viewColumn: vscode.ViewColumn.Beside  // Open in separate column if not already open
+                });
+                
+                // Generate and apply code changes
+                const generatedCode = await this.abstractionManager.generateCode(content, originalMapping.code, changes, editor);
+                if (!generatedCode) {
+                    throw new Error('No code changes were generated');
                 }
 
-                if (!success) {
-                    throw new Error('Failed to apply code changes');
-                }
+                // Update cache
+                const newMapping: VersionedContent = {
+                    code: generatedCode,
+                    pseudocode: content,
+                    lastEditTime: Date.now(),
+                    version: originalMapping.version + 1
+                };
+                codeMapManager.set(fileUri.toString(), newMapping);
 
-                console.log('Successfully updated code from pseudocode save');
+                // Switch back to pseudocode editor
+                const pseudocodeEditor = await vscode.window.showTextDocument(document, { 
+                    preview: false,
+                    preserveFocus: false  // Ensure focus returns to pseudocode
+                });
+
             } catch (error: unknown) {
                 console.error('Error in handlePseudocodeSave:', error);
-                // Show error to user but don't rethrow to prevent window crash
                 vscode.window.showErrorMessage(`Error saving pseudocode: ${error instanceof Error ? error.message : String(error)}`);
+            } finally {
+                this.isApplyingChanges = false;
             }
         });
     }
@@ -275,7 +255,7 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                     code: content,
                     pseudocode: pseudocode,
                     lastEditTime: Date.now(),
-                    version: (cached?.version || 0) + 1
+                    version: (cached?.version ?? 0) + 1
                 });
 
                 // Update final content and notify
