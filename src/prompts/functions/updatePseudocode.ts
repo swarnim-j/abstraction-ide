@@ -1,6 +1,8 @@
 import { Message } from '../../managers/llm/LLMProvider';
 import { UpdatePseudocodeParams, PromptFunction } from '../types';
 import { updatePseudocodeTemplate } from '../templates/updatePseudocode';
+import { LLMManager } from '../../managers/llmManager';
+import { CodeChange } from '../../types';
 
 export const updatePseudocodePrompt: PromptFunction<UpdatePseudocodeParams> = ({ code, pseudocode, changes }) => {
     const messages: Message[] = [
@@ -23,8 +25,16 @@ export const updatePseudocodePrompt: PromptFunction<UpdatePseudocodeParams> = ({
     // Add the actual user query
     messages.push({
         role: 'user',
-        content: `Original code:\n\n${code}\n\nCurrent pseudocode:\n\n${pseudocode}\n\nChanges:\n${JSON.stringify(changes, null, 2)}`
+        content: `Original code:\n${code}\n\nOriginal pseudocode:\n${pseudocode}\n\nChanges:\n${JSON.stringify(changes, null, 2)}`
     });
 
     return messages;
-}; 
+};
+
+export async function updatePseudocode(code: string, pseudocode: string, changes: CodeChange[]): Promise<string> {
+    const llmManager = new LLMManager();
+    await llmManager.initialize();
+    
+    const messages = updatePseudocodePrompt({ code, pseudocode, changes });
+    return llmManager.createCompletion(messages);
+}

@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
 import { LLMManager } from './llmManager';
 import { TextProcessor } from '../utils/textProcessor';
-import { DiffCalculator } from '../utils/diffCalculator';
+import { DiffUtils } from '../utils/diffUtils';
 import { CodeChange, VersionedContent } from '../types';
+import { streamGeneratePseudocode } from '../prompts/functions/generatePseudocode';
+import { updatePseudocode } from '../prompts/functions/updatePseudocode';
+import { updateCode } from '../prompts/functions/updateCode';
 
 export class AbstractionManager {
     private aiManager: LLMManager;
@@ -54,9 +57,9 @@ export class AbstractionManager {
             }
 
             // Calculate code changes
-            const codeDiff = DiffCalculator.calculateInternalDiff(mapping.code, newCode);
+            const codeDiff = DiffUtils.generateUnifiedDiff(mapping.code, newCode);
             
-            if (codeDiff.length === 0) {
+            if (!DiffUtils.hasChanges(mapping.code, newCode)) {
                 return;
             }
 
@@ -66,14 +69,11 @@ export class AbstractionManager {
             statusBarItem.show();
 
             // Generate pseudocode changes using the diff
-            let pseudocodeDiff = '';
-            for await (const chunk of this.aiManager.streamPseudocodeUpdate(
+            const pseudocodeDiff = await updatePseudocode(
                 newCode,
                 mapping.pseudocode,
-                codeDiff.map(change => ({ type: 'modify' as const, content: change }))
-            )) {
-                pseudocodeDiff += chunk;
-            }
+                [{ type: 'modify' as const, content: codeDiff }]
+            );
 
             if (!pseudocodeDiff.trim()) {
                 console.error('Failed to generate pseudocode changes');
@@ -83,7 +83,7 @@ export class AbstractionManager {
             }
 
             // Apply the changes to the pseudocode
-            const newPseudocode = DiffCalculator.applyDiff(mapping.pseudocode, pseudocodeDiff);
+            const newPseudocode = DiffUtils.applyUnifiedDiff(mapping.pseudocode, pseudocodeDiff);
 
             if (newPseudocode === mapping.pseudocode) {
                 statusBarItem.text = "$(info) No pseudocode changes needed";
@@ -214,7 +214,7 @@ export class AbstractionManager {
             let chunks: string[] = [];
 
             try {
-                for await (const chunk of this.aiManager.streamPseudocode(content)) {
+                for await (const chunk of streamGeneratePseudocode(content)) {
                     chunks.push(chunk);
                     pseudocode = chunks.join('');
                     const partialContent = TextProcessor.cleanPseudocode(pseudocode);
@@ -266,10 +266,7 @@ export class AbstractionManager {
         statusBarItem.show();
 
         try {
-            let newCode = '';
-            for await (const chunk of this.aiManager.streamToCode(pseudocode, originalCode, changes)) {
-                newCode += chunk;
-            }
+            const newCode = await updateCode(pseudocode, originalCode, changes);
 
             if (newCode === originalCode) {
                 statusBarItem.text = "$(info) No code changes needed";

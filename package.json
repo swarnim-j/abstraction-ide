@@ -98,7 +98,10 @@
         "abstractionIde.llmProvider": {
           "type": "string",
           "default": "anthropic",
-          "enum": ["openai", "anthropic"],
+          "enum": [
+            "openai",
+            "anthropic"
+          ],
           "description": "The LLM provider to use"
         },
         "abstractionIde.openai.apiKey": {
@@ -145,6 +148,7 @@
     "@types/diff-match-patch": "^1.0.36",
     "diff": "^7.0.0",
     "diff-match-patch": "^1.0.5",
-    "openai": "^4.24.1"
+    "openai": "^4.24.1",
+    "unidiff": "^1.0.4"
   }
 }
