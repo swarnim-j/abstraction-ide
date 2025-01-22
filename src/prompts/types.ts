@@ -15,13 +15,13 @@ export interface GeneratePseudocodeParams {
 export interface UpdateCodeParams {
     code: string;
     pseudocode: string;
-    changes: any[];
+    diff: string;
 }
 
 export interface UpdatePseudocodeParams {
     code: string;
     pseudocode: string;
-    changes: any[];
+    diff: string;
 }
 
 export type PromptFunction<T> = (params: T) => Message[]; 

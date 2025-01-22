@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { LLMManager } from './llmManager';
 import { TextProcessor } from '../utils/textProcessor';
 import { DiffUtils } from '../utils/diffUtils';
-import { CodeChange, VersionedContent } from '../types';
+import { VersionedContent } from '../types';
 import { streamGeneratePseudocode } from '../prompts/functions/generatePseudocode';
 import { updatePseudocode } from '../prompts/functions/updatePseudocode';
 import { updateCode } from '../prompts/functions/updateCode';
@@ -75,7 +75,7 @@ export class AbstractionManager {
                 this.llmManager,
                 newCode,
                 mapping.pseudocode,
-                [{ type: 'modify' as const, content: codeDiff }]
+                codeDiff
             );
 
             if (!pseudocodeDiff.trim()) {
@@ -113,26 +113,16 @@ export class AbstractionManager {
                 newPseudocode
             );
             await vscode.workspace.applyEdit(edit);
-            
-            // Save only the abstraction document
-            const abstractionEditor = await vscode.window.showTextDocument(abstractionDoc, { preserveFocus: true });
-            await abstractionEditor.document.save();
-            
-            // Switch back to the original document
-            await vscode.window.showTextDocument(document, { preserveFocus: false });
+            await abstractionDoc.save();
 
             statusBarItem.text = "$(check) Pseudocode updated";
             setTimeout(() => statusBarItem.hide(), 3000);
 
         } catch (error) {
-            console.error('Error handling code save:', error);
-            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-            statusBarItem.text = "$(error) Pseudocode update error";
-            statusBarItem.show();
-            setTimeout(() => statusBarItem.hide(), 3000);
-            vscode.window.showErrorMessage(`Error updating pseudocode: ${error instanceof Error ? error.message : String(error)}`);
+            console.error('Error in handleCodeSave:', error);
+            vscode.window.showErrorMessage(`Error saving code: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
-            this.isApplyingChanges = false;  // Reset flag after changes
+            this.isApplyingChanges = false;
         }
     }
 
@@ -243,27 +233,17 @@ export class AbstractionManager {
         }
     }
 
-    private async getOriginalCode(): Promise<string | undefined> {
-        const uri = vscode.window.activeTextEditor?.document.uri;
-        if (!uri) return undefined;
-        
-        const originalMapping = this.codeMap.get(uri.toString());
-        if (!originalMapping) return undefined;
-        
-        return originalMapping.code;
-    }
-
     getCodeMapping(uri: string): VersionedContent | undefined {
         return this.codeMap.get(uri);
     }
 
-    async generateCode(pseudocode: string, originalCode: string, changes: CodeChange[], document: vscode.TextDocument): Promise<string | undefined> {
+    async generateCode(pseudocode: string, originalCode: string, diff: string, document: vscode.TextDocument): Promise<string | undefined> {
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
         statusBarItem.text = "$(sync~spin) Generating code...";
         statusBarItem.show();
 
         try {
-            const newCode = await updateCode(this.llmManager, pseudocode, originalCode, changes);
+            const newCode = await updateCode(this.llmManager, originalCode, pseudocode, diff);
 
             if (newCode === originalCode) {
                 statusBarItem.text = "$(info) No code changes needed";

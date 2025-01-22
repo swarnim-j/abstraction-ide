@@ -1,6 +1,3 @@
-import DiffMatchPatch from 'diff-match-patch';
-import { CodeChange, ExtractChangesResult } from '../types/index';
-
 export class TextProcessor {
     static cleanPseudocode(text: string): string {
         try {
@@ -63,57 +60,5 @@ export class TextProcessor {
         } catch (error: unknown) {
             return ''; // Return empty string on error
         }
-    }
-
-    static extractChanges(oldText: string, newText: string): ExtractChangesResult {
-        try {
-            if (typeof oldText !== 'string' || typeof newText !== 'string') {
-                throw new Error('Invalid input types');
-            }
-
-            const changes: CodeChange[] = [];
-            const oldLines = oldText.split('\n');
-            const newLines = newText.split('\n');
-            
-            let hasContentChange = false;
-            
-            // Simple diff algorithm
-            const maxLines = Math.max(oldLines.length, newLines.length);
-            for (let i = 0; i < maxLines; i++) {
-                const oldLine = oldLines[i] || '';
-                const newLine = newLines[i] || '';
-                
-                if (oldLine !== newLine) {
-                    hasContentChange = true;
-                    if (!oldLine) {
-                        changes.push({
-                            type: 'add',
-                            content: newLine,
-                            lineNumber: i + 1
-                        });
-                    } else if (!newLine) {
-                        changes.push({
-                            type: 'delete',
-                            content: oldLine,
-                            lineNumber: i + 1
-                        });
-                    } else {
-                        changes.push({
-                            type: 'modify',
-                            content: newLine,
-                            lineNumber: i + 1
-                        });
-                    }
-                }
-            }
-            
-            return { changes, hasContentChange };
-        } catch (error: unknown) {
-            return { changes: [], hasContentChange: false };
-        }
-    }
-
-    static getDiffMatchPatch(): DiffMatchPatch {
-        return new DiffMatchPatch();
     }
 } 
