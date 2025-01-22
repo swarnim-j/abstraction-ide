@@ -48,7 +48,7 @@ export class LLMManager {
         }
     }
 
-    async generate(messages: Message[]): Promise<string> {
+    async generate(messages: Message[], config: any = { temperature: 0.7 }): Promise<string> {
         if (!this.provider || !this.model) {
             throw new Error('LLM Manager not initialized');
         }
@@ -57,7 +57,7 @@ export class LLMManager {
             const { text } = await generateText({
                 model: this.provider(this.model),
                 messages,
-                temperature: 0.7,
+                temperature: config.temperature,
             });
             return text;
         } catch (error) {
@@ -66,7 +66,7 @@ export class LLMManager {
         }
     }
 
-    async* stream(messages: Message[]): AsyncGenerator<string> {
+    async* stream(messages: Message[], config: any = { temperature: 0.7 }): AsyncGenerator<string> {
         if (!this.provider || !this.model) {
             throw new Error('LLM Manager not initialized');
         }
@@ -75,7 +75,7 @@ export class LLMManager {
             const { textStream } = streamText({
                 model: this.provider(this.model),
                 messages,
-                temperature: 0.7,
+                temperature: config.temperature,
             });
 
             for await (const part of textStream) {
