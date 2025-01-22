@@ -58,12 +58,8 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
 
         // Handle messages from the webview
         webviewPanel.webview.onDidReceiveMessage(async message => {
-            console.log('\n=== Received message from webview ===');
-            console.log('Message:', message);
-            
             switch (message.command) {
                 case 'edit':
-                    console.log('Handling edit command');
                     await this.handleEdit(document, message.text);
                     break;
             }
@@ -117,30 +113,19 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
         const uri = document.uri.toString();
         const isPseudo = this.isPseudocodeView.get(uri) || false;
         
-        console.log('\n=== handleEdit called ===');
-        console.log('URI:', uri);
-        console.log('isPseudo:', isPseudo);
-        
         if (isPseudo) {
-            console.log('\n=== Handling Pseudocode Edit ===');
-            console.log('New text length:', newText.length);
-            
             // Convert pseudocode changes back to code
             const cached = codeMapManager.get(uri);
             if (!cached) {
-                console.warn('No cached content found for:', uri);
                 return;
             }
 
             try {
                 // Generate unified diff from pseudocode changes
                 const pseudocodeDiff = DiffUtils.generateUnifiedDiff(cached.pseudocode, newText);
-                console.log('\n=== Pseudocode Diff ===');
-                console.log(pseudocodeDiff);
                 
                 // Skip if no meaningful changes
                 if (!DiffUtils.hasChanges(cached.pseudocode, newText)) {
-                    console.log('No meaningful changes detected');
                     return;
                 }
                 
@@ -148,27 +133,17 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                 const editor = await vscode.window.showTextDocument(document, { preview: false });
                 
                 // Use AbstractionManager to get the code diff from LLM
-                console.log('\n=== Calling AbstractionManager.generateCode ===');
                 const llmGeneratedDiff = await this.abstractionManager.generateCode(newText, cached.code, pseudocodeDiff, document);
                 if (!llmGeneratedDiff) {
                     throw new Error('Failed to generate code changes');
                 }
 
-                console.log('\n=== LLM Generated Diff ===');
-                console.log(llmGeneratedDiff);
-
                 // Apply the LLM-generated diff to the current code to get the complete new code
                 const currentCode = document.getText();
-                console.log('\n=== Current Code ===');
-                console.log(currentCode);
                 
                 const newCode = DiffUtils.applyUnifiedDiff(currentCode, llmGeneratedDiff);
                 
-                console.log('\n=== New Code After Applying Diff ===');
-                console.log(newCode);
-
                 if (newCode === currentCode) {
-                    console.log('No changes in generated code, skipping update');
                     return;
                 }
 
@@ -180,7 +155,6 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                     newCode
                 );
 
-                console.log('\n=== Applying WorkspaceEdit ===');
                 const success = await vscode.workspace.applyEdit(edit);
                 if (!success) {
                     throw new Error('Failed to apply code changes');
@@ -193,10 +167,7 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                     lastEditTime: Date.now(),
                     version: cached.version + 1
                 });
-
-                console.log('Successfully applied code changes');
             } catch (error) {
-                console.error('Error handling pseudocode edit:', error);
                 vscode.window.showErrorMessage(`Error updating code: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
@@ -235,7 +206,6 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                 }
             }
         } catch (error) {
-            console.error('Error updating pseudocode:', error);
             vscode.window.showErrorMessage(`Error updating pseudocode: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -265,7 +235,6 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
             webviewPanel.title = title;
             webviewPanel.webview.html = this.getHtmlForWebview(content, isPseudo);
         } catch (error) {
-            console.error('Error updating content:', error);
             vscode.window.showErrorMessage(`Error updating content: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -307,9 +276,7 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                     let content = ${JSON.stringify(content)};
                     
                     function updateContent(newContent) {
-                        console.log('updateContent called with:', newContent);
                         if (newContent !== content) {
-                            console.log('Content changed, posting message');
                             content = newContent;
                             vscode.postMessage({
                                 command: 'edit',

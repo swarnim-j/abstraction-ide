@@ -133,8 +133,6 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
                 // Generate unified diff from pseudocode changes
                 const pseudocodeDiff = DiffUtils.generateUnifiedDiff(originalMapping.pseudocode, content);
-                console.log('\n=== Pseudocode Changes (Diff) ===');
-                console.log(pseudocodeDiff);
                 
                 // Skip if no meaningful changes
                 if (!DiffUtils.hasChanges(originalMapping.pseudocode, content)) {
@@ -145,7 +143,6 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                 const codeDocument = await vscode.workspace.openTextDocument(fileUri);
                 
                 // Generate and apply code changes
-                console.log('\n=== Calling AbstractionManager.generateCode ===');
                 const llmGeneratedDiff = await this.abstractionManager.generateCode(
                     content, 
                     originalMapping.code, 
@@ -156,13 +153,8 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                     throw new Error('No code changes were generated');
                 }
 
-                console.log('\n=== LLM Generated Code Changes (Diff) ===');
-                console.log(llmGeneratedDiff);
-
                 // Apply the diff to get complete new code
                 const newCode = DiffUtils.applyUnifiedDiff(originalMapping.code, llmGeneratedDiff);
-                console.log('\n=== New Code After Applying Diff ===');
-                console.log(newCode);
 
                 // Apply changes to code document in background
                 const edit = new vscode.WorkspaceEdit();
