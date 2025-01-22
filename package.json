@@ -165,7 +165,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.0",
     "@ai-sdk/google": "^1.1.0",
-    "@ai-sdk/mistral": "^1.1.0",
+    "@ai-sdk/mistral": "^1.1.1",
     "@ai-sdk/openai": "^1.1.0",
     "@types/diff": "^7.0.0",
     "@types/diff-match-patch": "^1.0.36",
