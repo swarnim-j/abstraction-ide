@@ -134,7 +134,7 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                 const editor = await vscode.window.showTextDocument(document, { preview: false });
                 
                 // Use AbstractionManager for proper diff-based code generation
-                const newCode = await this.abstractionManager.generateCode(newText, cached.code, changes, editor);
+                const newCode = await this.abstractionManager.generateCode(newText, cached.code, changes, document);
                 if (!newCode) {
                     throw new Error('Failed to generate code changes');
                 }
@@ -186,7 +186,7 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                 const cached = codeMapManager.get(uri);
                 if (cached?.pseudocode) {
                     const editor = await vscode.window.showTextDocument(document, { preview: false });
-                    const newPseudocode = await this.abstractionManager.generateCode(cached.pseudocode, newText, changes, editor);
+                    const newPseudocode = await this.abstractionManager.generateCode(cached.pseudocode, newText, changes, document);
                     if (newPseudocode) {
                         codeMapManager.set(uri, {
                             code: newText,

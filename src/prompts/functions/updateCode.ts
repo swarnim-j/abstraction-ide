@@ -1,4 +1,4 @@
-import { Message } from '../../managers/llm/LLMProvider';
+import { Message } from '../../managers/llmManager';
 import { UpdateCodeParams, PromptFunction } from '../types';
 import { updateCodeTemplate } from '../templates/updateCode';
 import { LLMManager } from '../../managers/llmManager';

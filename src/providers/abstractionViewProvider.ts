@@ -134,19 +134,24 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                 // Generate code from pseudocode changes
                 const changes = TextProcessor.extractChanges(originalMapping.pseudocode, content).changes;
                 
-                // Get editor but don't show it (keep it in background)
+                // Get code document but don't show it
                 const codeDocument = await vscode.workspace.openTextDocument(fileUri);
-                const editor = await vscode.window.showTextDocument(codeDocument, { 
-                    preview: false,
-                    preserveFocus: true,  // Don't switch focus to code editor
-                    viewColumn: vscode.ViewColumn.Beside  // Open in separate column if not already open
-                });
                 
                 // Generate and apply code changes
-                const generatedCode = await this.abstractionManager.generateCode(content, originalMapping.code, changes, editor);
+                const generatedCode = await this.abstractionManager.generateCode(content, originalMapping.code, changes, codeDocument);
                 if (!generatedCode) {
                     throw new Error('No code changes were generated');
                 }
+
+                // Apply changes to code document in background
+                const edit = new vscode.WorkspaceEdit();
+                edit.replace(
+                    fileUri,
+                    new vscode.Range(0, 0, codeDocument.lineCount, 0),
+                    generatedCode
+                );
+                await vscode.workspace.applyEdit(edit);
+                await codeDocument.save();
 
                 // Update cache
                 const newMapping: VersionedContent = {
@@ -156,12 +161,6 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
                     version: originalMapping.version + 1
                 };
                 codeMapManager.set(fileUri.toString(), newMapping);
-
-                // Switch back to pseudocode editor
-                const pseudocodeEditor = await vscode.window.showTextDocument(document, { 
-                    preview: false,
-                    preserveFocus: false  // Ensure focus returns to pseudocode
-                });
 
             } catch (error: unknown) {
                 console.error('Error in handlePseudocodeSave:', error);

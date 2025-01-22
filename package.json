@@ -97,12 +97,23 @@
       "properties": {
         "abstractionIde.llmProvider": {
           "type": "string",
-          "default": "anthropic",
+          "default": "google",
           "enum": [
+            "google",
             "openai",
-            "anthropic"
+            "anthropic",
+            "mistral"
           ],
           "description": "The LLM provider to use"
+        },
+        "abstractionIde.google.apiKey": {
+          "type": "string",
+          "description": "Google API key"
+        },
+        "abstractionIde.google.model": {
+          "type": "string",
+          "default": "gemini-2.0-flash-exp",
+          "description": "Google model to use"
         },
         "abstractionIde.openai.apiKey": {
           "type": "string",
@@ -110,7 +121,7 @@
         },
         "abstractionIde.openai.model": {
           "type": "string",
-          "default": "gpt-4o",
+          "default": "gpt-4-turbo",
           "description": "OpenAI model to use"
         },
         "abstractionIde.anthropic.apiKey": {
@@ -119,8 +130,17 @@
         },
         "abstractionIde.anthropic.model": {
           "type": "string",
-          "default": "claude-3-5-sonnet-20241022",
+          "default": "claude-3-sonnet",
           "description": "Anthropic model to use"
+        },
+        "abstractionIde.mistral.apiKey": {
+          "type": "string",
+          "description": "Mistral API key"
+        },
+        "abstractionIde.mistral.model": {
+          "type": "string",
+          "default": "mistral-7b-instruct",
+          "description": "Mistral model to use"
         }
       }
     }
@@ -143,12 +163,15 @@
     "typescript": "^5.x"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.33.1",
+    "@ai-sdk/anthropic": "^1.1.0",
+    "@ai-sdk/google": "^1.1.0",
+    "@ai-sdk/mistral": "^1.1.0",
+    "@ai-sdk/openai": "^1.1.0",
     "@types/diff": "^7.0.0",
     "@types/diff-match-patch": "^1.0.36",
+    "ai": "^4.1.0",
     "diff": "^7.0.0",
     "diff-match-patch": "^1.0.5",
-    "openai": "^4.24.1",
     "unidiff": "^1.0.4"
   }
 }

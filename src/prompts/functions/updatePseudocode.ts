@@ -1,4 +1,4 @@
-import { Message } from '../../managers/llm/LLMProvider';
+import { Message } from '../../managers/llmManager';
 import { UpdatePseudocodeParams, PromptFunction } from '../types';
 import { updatePseudocodeTemplate } from '../templates/updatePseudocode';
 import { LLMManager } from '../../managers/llmManager';

@@ -1,4 +1,4 @@
-import { Message } from '../managers/llm/LLMProvider';
+import { Message } from '../managers/llmManager';
 
 export interface PromptTemplate {
     systemPrompt: string;

@@ -8,14 +8,14 @@ import { updatePseudocode } from '../prompts/functions/updatePseudocode';
 import { updateCode } from '../prompts/functions/updateCode';
 
 export class AbstractionManager {
-    private aiManager: LLMManager;
+    private llmManager: LLMManager;
     private codeMap: Map<string, VersionedContent> = new Map();
     private isInitialized = false;
     private isApplyingChanges = false;  // Add flag to track changes
     private initializationPromise: Promise<void>;
 
     constructor(context: vscode.ExtensionContext) {
-        this.aiManager = new LLMManager();
+        this.llmManager = new LLMManager();
         
         // Register status bar item to show initialization status
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
@@ -23,7 +23,7 @@ export class AbstractionManager {
         statusBarItem.show();
         
         // Single initialization with proper error handling
-        this.initializationPromise = this.aiManager.initialize().then(() => {
+        this.initializationPromise = this.llmManager.initialize().then(() => {
             this.isInitialized = true;
             statusBarItem.text = "$(check) Abstraction IDE Ready";
             setTimeout(() => statusBarItem.hide(), 3000);
@@ -72,7 +72,7 @@ export class AbstractionManager {
 
             // Generate pseudocode changes using the diff
             const pseudocodeDiff = await updatePseudocode(
-                this.aiManager,
+                this.llmManager,
                 newCode,
                 mapping.pseudocode,
                 [{ type: 'modify' as const, content: codeDiff }]
@@ -148,7 +148,7 @@ export class AbstractionManager {
         let chunks: string[] = [];
 
         try {
-            for await (const chunk of streamGeneratePseudocode(this.aiManager, content)) {
+            for await (const chunk of streamGeneratePseudocode(this.llmManager, content)) {
                 chunks.push(chunk);
                 pseudocode = chunks.join('');
                 const partialContent = TextProcessor.cleanPseudocode(pseudocode);
@@ -257,29 +257,18 @@ export class AbstractionManager {
         return this.codeMap.get(uri);
     }
 
-    async generateCode(pseudocode: string, originalCode: string, changes: CodeChange[], editor: vscode.TextEditor): Promise<string | undefined> {
+    async generateCode(pseudocode: string, originalCode: string, changes: CodeChange[], document: vscode.TextDocument): Promise<string | undefined> {
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
         statusBarItem.text = "$(sync~spin) Generating code...";
         statusBarItem.show();
 
         try {
-            const newCode = await updateCode(this.aiManager, pseudocode, originalCode, changes);
+            const newCode = await updateCode(this.llmManager, pseudocode, originalCode, changes);
 
             if (newCode === originalCode) {
                 statusBarItem.text = "$(info) No code changes needed";
                 setTimeout(() => statusBarItem.hide(), 3000);
                 return;
-            }
-
-            if (editor) {
-                const edit = new vscode.WorkspaceEdit();
-                edit.replace(
-                    editor.document.uri,
-                    new vscode.Range(0, 0, editor.document.lineCount, 0),
-                    newCode
-                );
-                await vscode.workspace.applyEdit(edit);
-                await editor.document.save();
             }
 
             setTimeout(() => statusBarItem.hide(), 3000);
