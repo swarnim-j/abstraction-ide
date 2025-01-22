@@ -12,7 +12,6 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
     private chunkCount = new Map<string, number>();
     private generationLocks = new Map<string, Promise<void>>();
     private statusBarItem: vscode.StatusBarItem;
-    private pendingChanges = new Map<string, string>();
     private initialGenerationInProgress = new Map<string, boolean>();
     private isApplyingChanges = false;
     

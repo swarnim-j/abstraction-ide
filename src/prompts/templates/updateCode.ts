@@ -24,42 +24,87 @@ CRITICAL RULES:
    - File headers (---, +++)
    - Markdown blocks
    - Any explanatory text
+8. Important: A change in one part of the pseudocode may require multiple coordinated changes across different parts of the actual code. Always analyze the entire codebase context to:
+   - Identify all dependent code sections that need updates
+   - Maintain consistency across the entire codebase
+   - Update all related function calls, interfaces, and type definitions
+   - Ensure changes preserve the overall system architecture
 
 EXAMPLES OF GOOD HUNKS:
 
-1. Simple value change with function context:
+1. Simple change requiring multiple coordinated updates:
 @@
- function calculatePrice(quantity: number): number {
--    const price = 10;
-+    const price = 15;
-     return quantity * price;
+ interface OrderProcessor {
++    taxRate: number;
+     process(order: Order): void;
  }
 
-2. Multiple related changes in one hunk:
 @@
- class ShoppingCart {
-     private items: Item[] = [];
--    private discount = 0;
--    
--    applyDiscount(percent: number) {
--        this.discount = percent;
-+    private discounts: Discount[] = [];
-+    
-+    applyDiscount(discount: Discount) {
-+        this.discounts.push(discount);
+ class StandardProcessor implements OrderProcessor {
++    taxRate = 0.1;
++
+     process(order: Order): void {
+         const total = this.calculateTotal(order.items);
++        const withTax = total * (1 + this.taxRate);
+-        this.notify(total);
++        this.notify(withTax);
      }
  }
 
-3. Error handling changes:
+2. Feature addition requiring interface and implementation changes:
 @@
- function validateUser(data: any): void {
--    if (!data.name) throw new Error("Invalid");
-+    if (!data.name) {
-+        throw new Error("Name is required");
+ interface ShoppingCart {
++    discountRules: DiscountRule[];
+     calculateTotal(): number;
++    validateDiscounts(): void;
+ }
+
+@@
+ class Cart implements ShoppingCart {
++    discountRules: DiscountRule[] = [];
++
+     calculateTotal(): number {
+         let total = this.getItemsTotal();
++        this.validateDiscounts();
++        total = this.applyDiscounts(total);
+         return total;
+     }
++
++    validateDiscounts(): void {
++        for (const rule of this.discountRules) {
++            rule.validate();
++        }
 +    }
-+    if (!data.email) {
-+        throw new Error("Email is required");
-+    }
+ }
+
+3. Error handling with cascading effects:
+@@
+ interface ValidationResult {
+-    valid: boolean;
++    status: 'valid' | 'invalid' | 'pending';
++    errors: string[];
+ }
+
+@@
+ function validateUser(data: UserData): ValidationResult {
+-    return { valid: data.name && data.email };
++    const errors: string[] = [];
++    if (!data.name) errors.push("Name required");
++    if (!data.email) errors.push("Email required");
++    return {
++        status: errors.length ? 'invalid' : 'valid',
++        errors
++    };
+ }
+
+@@
+ function processUser(data: UserData): void {
+-    if (!validateUser(data).valid) {
+-        throw new Error("Invalid user");
++    const validation = validateUser(data);
++    if (validation.status === 'invalid') {
++        throw new Error(validation.errors.join(", "));
+     }
  }
 
 4. Multiple independent changes as separate hunks:
