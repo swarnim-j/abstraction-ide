@@ -111,11 +111,27 @@ export class EmbeddingUtils {
 
         // Find the line most similar to the cursor line
         const centerMatch = similarities.reduce((best, current) => {
-            if (current.sourceLine === cursorLine && (!best || current.score > best.score)) {
+            // If we find an exact source line match with better score, use it
+            if (current.sourceLine === cursorLine) {
+                if (!best || best.sourceLine !== cursorLine || current.score > best.score) {
+                    return current;
+                }
+            }
+            // If we haven't found any exact matches yet, use the best scoring line
+            else if (!best || (best.sourceLine !== cursorLine && current.score > best.score)) {
                 return current;
             }
             return best;
-        }, similarities[0]);
+        }, similarities[0]);  // Start with first similarity as initial value
+
+        // Log for debugging
+        console.log('Cursor line:', cursorLine);
+        console.log('Center match:', JSON.stringify(centerMatch));
+        console.log('All similarities:', JSON.stringify(similarities.map(s => ({
+            targetLine: s.targetLine,
+            sourceLine: s.sourceLine,
+            score: s.score
+        }))));
 
         const centerLine = centerMatch.targetLine;
         const centerScore = centerMatch.score;
@@ -178,6 +194,7 @@ export class EmbeddingUtils {
         for (let targetIndex = 0; targetIndex < targetLines.length; targetIndex++) {
             let bestScore = 0;
             let bestSourceLine = 0;
+            let bestCombinedScore = 0;
 
             // Compare with each source line
             for (let sourceIndex = 0; sourceIndex < sourceLines.length; sourceIndex++) {
@@ -192,13 +209,21 @@ export class EmbeddingUtils {
                     sourceIndex / sourceLines.length - targetIndex / targetLines.length
                 );
 
-                // Combine similarities with weights
-                const score = 
-                    (1 - this.SPATIAL_WEIGHT) * semanticSimilarity +
-                    this.SPATIAL_WEIGHT * spatialSimilarity;
+                // Calculate cursor proximity bonus (higher if source line is closer to cursor line)
+                const cursorProximity = 1 - Math.min(1, Math.abs(sourceIndex - cursorLine) / 10);
 
-                if (score > bestScore) {
-                    bestScore = score;
+                // Combine similarities with weights
+                const combinedScore = 
+                    0.3 * semanticSimilarity +  // Semantic similarity weight (reduced from 0.4)
+                    0.4 * spatialSimilarity +   // Spatial similarity weight (increased from 0.3)
+                    0.3 * cursorProximity;      // Cursor proximity weight (kept same)
+
+                // Boost score significantly if this is an exact cursor line match
+                const finalScore = sourceIndex === cursorLine ? combinedScore * 2.0 : combinedScore;  // Increased boost from 1.5 to 2.0
+
+                if (finalScore > bestCombinedScore) {
+                    bestCombinedScore = finalScore;
+                    bestScore = semanticSimilarity;
                     bestSourceLine = sourceIndex;
                 }
             }

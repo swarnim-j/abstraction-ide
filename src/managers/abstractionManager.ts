@@ -250,10 +250,22 @@ export class AbstractionManager {
                     false // Not initial generation
                 );
 
-                // Show the document
+                // Get the center line (the one with opacity 1)
+                const centerLine = highlightedLines.find(h => h.opacity === 1);
+                if (!centerLine) {
+                    return;
+                }
+
+                // Calculate target scroll position to maintain relative cursor position
+                const targetVisibleStart = Math.max(0, Math.floor(centerLine.line - (cursorRelativePosition * visibleLineCount)));
+                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
+
+                // Show the document in the same tab
                 const newEditor = await vscode.window.showTextDocument(doc, {
-                    preview: false,
-                    viewColumn: vscode.ViewColumn.Active
+                    preview: true,
+                    preserveFocus: false,
+                    viewColumn: editor.viewColumn,
+                    selection: new vscode.Range(centerLine.line, 0, centerLine.line, 0)
                 });
 
                 // Create array of ranges for non-highlighted lines
@@ -297,22 +309,15 @@ export class AbstractionManager {
                     ]);
                 });
 
-                // Find the line that best matches the cursor position
-                const cursorMatchLine = highlightedLines.find(h => h.sourceLine === cursorLine) || highlightedLines[0];
-                const lineLength = targetLines[cursorMatchLine.line].length;
-                
-                // Calculate and set scroll position to maintain relative cursor position
-                const targetVisibleStart = Math.max(0, Math.floor(cursorMatchLine.line - (cursorRelativePosition * visibleLineCount)));
-                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
-                
-                // First reveal the range to ensure proper scrolling
-                newEditor.revealRange(
-                    new vscode.Range(targetVisibleStart, 0, targetVisibleEnd, 0),
-                    vscode.TextEditorRevealType.InCenter
-                );
+                // Set cursor position to the center line
+                const lineLength = targetLines[centerLine.line].length;
+                newEditor.selection = new vscode.Selection(centerLine.line, lineLength, centerLine.line, lineLength);
 
-                // Then set the cursor position
-                newEditor.selection = new vscode.Selection(cursorMatchLine.line, lineLength, cursorMatchLine.line, lineLength);
+                // Then reveal the range with the cursor at the same relative position
+                await newEditor.revealRange(
+                    new vscode.Range(targetVisibleStart, 0, targetVisibleEnd, 0),
+                    vscode.TextEditorRevealType.Default
+                );
 
                 // Clean up decorations after delay
                 setTimeout(() => {
@@ -334,10 +339,22 @@ export class AbstractionManager {
                     false // Not initial generation
                 );
 
-                // Show the document
-                const newEditor = await vscode.window.showTextDocument(doc, { 
-                    preview: false,
-                    viewColumn: vscode.ViewColumn.Active
+                // Get the center line (the one with opacity 1)
+                const centerLine = highlightedLines.find(h => h.opacity === 1);
+                if (!centerLine) {
+                    return;
+                }
+
+                // Calculate target scroll position to maintain relative cursor position
+                const targetVisibleStart = Math.max(0, Math.floor(centerLine.line - (cursorRelativePosition * visibleLineCount)));
+                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
+
+                // Show the document in the same tab
+                const newEditor = await vscode.window.showTextDocument(doc, {
+                    preview: true,
+                    preserveFocus: false,
+                    viewColumn: editor.viewColumn,
+                    selection: new vscode.Range(centerLine.line, 0, centerLine.line, 0)
                 });
 
                 // Create array of ranges for non-highlighted lines
@@ -381,22 +398,15 @@ export class AbstractionManager {
                     ]);
                 });
 
-                // Find the line that best matches the cursor position
-                const cursorMatchLine = highlightedLines.find(h => h.sourceLine === cursorLine) || highlightedLines[0];
-                const lineLength = targetLines[cursorMatchLine.line].length;
-                
-                // Calculate and set scroll position to maintain relative cursor position
-                const targetVisibleStart = Math.max(0, Math.floor(cursorMatchLine.line - (cursorRelativePosition * visibleLineCount)));
-                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
-                
-                // First reveal the range to ensure proper scrolling
-                newEditor.revealRange(
-                    new vscode.Range(targetVisibleStart, 0, targetVisibleEnd, 0),
-                    vscode.TextEditorRevealType.InCenter
-                );
+                // Set cursor position to the center line
+                const lineLength = targetLines[centerLine.line].length;
+                newEditor.selection = new vscode.Selection(centerLine.line, lineLength, centerLine.line, lineLength);
 
-                // Then set the cursor position
-                newEditor.selection = new vscode.Selection(cursorMatchLine.line, lineLength, cursorMatchLine.line, lineLength);
+                // Then reveal the range with the cursor at the same relative position
+                await newEditor.revealRange(
+                    new vscode.Range(targetVisibleStart, 0, targetVisibleEnd, 0),
+                    vscode.TextEditorRevealType.Default
+                );
 
                 // Clean up decorations after delay
                 setTimeout(() => {
