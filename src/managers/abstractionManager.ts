@@ -234,7 +234,9 @@ export class AbstractionManager {
             const visibleStart = visibleRange.start.line;
             const visibleEnd = visibleRange.end.line;
             const visibleLineCount = visibleEnd - visibleStart;
-            const cursorRelativePosition = (cursorLine - visibleStart) / visibleLineCount;
+
+            // Calculate absolute offset from viewport top
+            const cursorOffset = cursorLine - visibleStart;
 
             if (targetView === 'pseudocode') {
                 // Switch to pseudocode view
@@ -256,9 +258,15 @@ export class AbstractionManager {
                     return;
                 }
 
-                // Calculate target scroll position to maintain relative cursor position
-                const targetVisibleStart = Math.max(0, Math.floor(centerLine.line - (cursorRelativePosition * visibleLineCount)));
-                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
+                // Calculate target scroll position using absolute offset
+                const targetLine = centerLine.line;
+                // Calculate maximum possible start line to prevent overflow
+                const maxStart = Math.max(0, targetLines.length - visibleLineCount);
+                const targetVisibleStart = Math.min(
+                    Math.max(0, targetLine - cursorOffset),
+                    maxStart
+                );
+                const targetVisibleEnd = targetVisibleStart + visibleLineCount;
 
                 // Show the document in the same tab
                 const newEditor = await vscode.window.showTextDocument(doc, {
@@ -345,9 +353,15 @@ export class AbstractionManager {
                     return;
                 }
 
-                // Calculate target scroll position to maintain relative cursor position
-                const targetVisibleStart = Math.max(0, Math.floor(centerLine.line - (cursorRelativePosition * visibleLineCount)));
-                const targetVisibleEnd = Math.min(targetLines.length - 1, Math.ceil(targetVisibleStart + visibleLineCount));
+                // Calculate target scroll position using absolute offset
+                const targetLine = centerLine.line;
+                // Calculate maximum possible start line to prevent overflow
+                const maxStart = Math.max(0, targetLines.length - visibleLineCount);
+                const targetVisibleStart = Math.min(
+                    Math.max(0, targetLine - cursorOffset),
+                    maxStart
+                );
+                const targetVisibleEnd = targetVisibleStart + visibleLineCount;
 
                 // Show the document in the same tab
                 const newEditor = await vscode.window.showTextDocument(doc, {
