@@ -3,6 +3,7 @@ import { LLMManager } from './managers/llmManager';
 import { DiffUtils } from './utils/diffUtils';
 import { codeMapManager } from './state/codeMap';
 import { AbstractionManager } from './managers/abstractionManager';
+import { EmbeddingUtils } from './utils/embeddingUtils';
 
 export class CodeViewProvider implements vscode.CustomTextEditorProvider {
     private static readonly viewType = 'abstraction-ide.codeView';
@@ -196,6 +197,14 @@ export class CodeViewProvider implements vscode.CustomTextEditorProvider {
                     const editor = await vscode.window.showTextDocument(document, { preview: false });
                     const newPseudocode = await this.abstractionManager.generateCode(cached.pseudocode, newText, diff, document);
                     if (newPseudocode) {
+                        // Pre-compute embeddings for updated code and pseudocode
+                        const codeLines = newText.split('\n');
+                        const pseudoLines = newPseudocode.split('\n');
+                        await Promise.all([
+                            EmbeddingUtils.embedLines(codeLines),
+                            EmbeddingUtils.embedLines(pseudoLines)
+                        ]);
+
                         codeMapManager.set(uri, {
                             code: newText,
                             pseudocode: newPseudocode,

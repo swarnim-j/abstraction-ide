@@ -205,6 +205,271 @@ class DataProcessor:
 +        return filtered.length;
      }
  }`
+        },
+        {
+            user: `Original code (multi-service interaction):
+// user-service.ts
+interface UserRepository {
+    findById(id: string): User;
+}
+
+// order-service.ts
+class OrderProcessor {
+    process(userId: string) {
+        const user = userRepo.findById(userId);
+        if (!user.verified) throw new Error("Unverified user");
+        // ... order processing logic
+    }
+}
+
+Original pseudocode:
+User system flow:
+    Find user by ID
+    Check verification status
+    Process order if verified
+
+Changes:
+Add tiered verification levels:
+    Basic (email only)
+    Full (email + phone)
+    Update order processing to handle tiers
+    Add audit logging for verification checks`,
+            assistant: `@@
+ interface UserRepository {
+     findById(id: string): User;
++    getVerificationTier(userId: string): VerificationLevel;
+ }
+
+@@
+ class OrderProcessor {
+     process(userId: string) {
+         const user = userRepo.findById(userId);
+-        if (!user.verified) throw new Error("Unverified user");
++        const verification = userRepo.getVerificationTier(userId);
++        
++        if (verification === VerificationLevel.Basic) {
++            audit.logLimitedAccess(userId);
++        } else if (verification !== VerificationLevel.Full) {
++            throw new Error("Insufficient verification");
++        }
++        
+         // ... order processing logic
+     }
+ }`
+        },
+        {
+            user: `Original code (data layer):
+// schema.ts
+type Product = {
+    id: string;
+    name: string;
+    price: number;
+};
+
+// dao.ts
+class ProductDAO {
+    save(product: Product) {
+        db.save('products', product);
+    }
+}
+
+Original pseudocode:
+Product data model:
+    ID, name, price
+Save to database
+
+Changes:
+Add inventory management:
+    SKU field required
+    Track stock quantity
+    Validate stock on save
+    Add low stock warnings`,
+            assistant: `@@
+ type Product = {
+     id: string;
+     name: string;
+     price: number;
++    sku: string;
++    stock: number;
+ };
+
+@@
+ class ProductDAO {
+     save(product: Product) {
++        if (!product.sku) throw new Error("Missing SKU");
++        if (product.stock < 0) throw new Error("Invalid stock");
++        
+         db.save('products', product);
++        
++        if (product.stock < 10) {
++            alertLowStock(product.sku);
++        }
+     }
+ }`
+        },
+        {
+            user: `Original code (API gateway):
+// gateway.ts
+class ApiGateway {
+    private config: GatewayConfig;
+    
+    init() {
+        this.config = loadConfig();
+        startServer(this.config.port);
+    }
+}
+
+Original pseudocode:
+Initialize API gateway:
+    Load configuration
+    Start server on port
+
+Changes:
+Add dynamic configuration:
+    Environment-based config loading
+    Hot reload on config changes
+    Metrics endpoint
+    Health checks`,
+            assistant: `@@
+ class ApiGateway {
+     private config: GatewayConfig;
++    private metrics: MetricsCollector;
+     
+     init() {
+-        this.config = loadConfig();
++        this.config = loadEnvironmentConfig();
+         startServer(this.config.port);
++        setupConfigWatcher(this.handleConfigChange);
++        this.metrics = new MetricsCollector();
++        registerHealthChecks();
++    }
++    
++    private handleConfigChange(newConfig: GatewayConfig) {
++        this.config = mergeConfigs(this.config, newConfig);
++        updateServerSettings(this.config);
+     }
+ }`
+        },
+        {
+            user: `Original code (validation logic):
+// validation.ts
+function validateEmail(email: string): boolean {
+    return /.+@.+/.test(email);
+}
+
+Original pseudocode:
+Validate email format:
+    Check basic pattern
+
+Changes:
+Enhance email validation:
+    Use RFC-compliant regex
+    Add MX record check
+    Support international domains
+    Return validation details object`,
+            assistant: `@@
+-function validateEmail(email: string): boolean {
+-    return /.+@.+/.test(email);
++interface ValidationResult {
++    isValid: boolean;
++    reason?: string;
++    suggestions?: string[];
++}
++
++function validateEmail(email: string): ValidationResult {
++    const rfcRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_\`{|}~-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*$/;
++    if (!rfcRegex.test(email)) {
++        return { isValid: false, reason: "Invalid format" };
++    }
++    
++    // Additional validation steps...
+ }`
+        },
+        {
+            user: `Original code (UI component):
+// ProfileCard.jsx
+function ProfileCard({ user }) {
+    return (
+        <div className="card">
+            <h2>{user.name}</h2>
+            <p>Joined: {user.joinDate}</p>
+        </div>
+    );
+}
+
+Original pseudocode:
+Render profile card:
+    Display name
+    Show join date
+
+Changes:
+Enhance profile display:
+    Add avatar image
+    Show activity status
+    Format join date relative
+    Add hover effects
+    Support dark mode`,
+            assistant: `@@
+ function ProfileCard({ user }) {
+     return (
+-        <div className="card">
++        <div className="card dark:bg-gray-800 hover:shadow-lg">
++            <img 
++                src={user.avatar} 
++                alt={user.name}
++                className="profile-avatar"
++            />
+             <h2>{user.name}</h2>
+-            <p>Joined: {user.joinDate}</p>
++            <div className="status-indicator" data-status={user.status} />
++            <p>Member since: {formatRelativeDate(user.joinDate)}</p>
+         </div>
+     );
+ }`
+        },
+        {
+            user: `Original code (cloud integration):
+// storage.js
+class CloudStorage {
+    upload(file) {
+        const client = new AWS.S3();
+        return client.upload(file);
+    }
+}
+
+Original pseudocode:
+Cloud storage handler:
+    Upload files to S3
+
+Changes:
+Add multi-cloud support:
+    Configurable provider (AWS/GCP/Azure)
+    Retry with exponential backoff
+    Chunk large files
+    Verify checksums`,
+            assistant: `@@
+ class CloudStorage {
++    constructor(providerConfig) {
++        this.provider = initCloudProvider(providerConfig);
++    }
++    
+     upload(file) {
+-        const client = new AWS.S3();
+-        return client.upload(file);
++        return withRetry(async () => {
++            if (file.size > MAX_DIRECT_UPLOAD) {
++                return this.chunkedUpload(file);
++            }
++            const result = await this.provider.upload(file);
++            await verifyChecksum(file, result.checksum);
++            return result;
++        }, { maxAttempts: 3 });
++    }
++    
++    private chunkedUpload(file) {
++        // Implementation details...
+     }
+ }`
         }
     ]
 };

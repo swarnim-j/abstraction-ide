@@ -160,6 +160,14 @@ export class AbstractionManager {
             // Clean and return final pseudocode
             const finalPseudocode = TextProcessor.cleanPseudocode(pseudocode);
             
+            // Pre-compute embeddings for both code and pseudocode
+            const codeLines = content.split('\n');
+            const pseudoLines = finalPseudocode.split('\n');
+            await Promise.all([
+                EmbeddingUtils.embedLines(codeLines),
+                EmbeddingUtils.embedLines(pseudoLines)
+            ]);
+            
             // Store the original code and pseudocode mapping for both URIs
             const uri = vscode.window.activeTextEditor?.document.uri;
             if (uri) {

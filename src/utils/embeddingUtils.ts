@@ -144,7 +144,7 @@ export class EmbeddingUtils {
 
         // Add lines above and below with decreasing opacity
         for (let i = 1; i <= this.WINDOW_SIZE; i++) {
-            const opacity = Math.max(0.1, 1 - (i / this.WINDOW_SIZE));
+            const opacity = Math.max(0.3, 1 - (i / this.WINDOW_SIZE));
             const aboveLine = centerLine - i;
             const belowLine = centerLine + i;
 

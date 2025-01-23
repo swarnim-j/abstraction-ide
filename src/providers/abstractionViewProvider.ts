@@ -3,6 +3,7 @@ import { AbstractionManager } from '../managers/abstractionManager';
 import { codeMapManager } from '../state/codeMap';
 import { VersionedContent } from '../types';
 import { DiffUtils } from '../utils/diffUtils';
+import { EmbeddingUtils } from '../utils/embeddingUtils';
 
 export class AbstractionViewProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -154,6 +155,14 @@ export class AbstractionViewProvider implements vscode.TextDocumentContentProvid
 
                 // Apply the diff to get complete new code
                 const newCode = DiffUtils.applyUnifiedDiff(originalMapping.code, llmGeneratedDiff);
+
+                // Pre-compute embeddings for updated code and pseudocode
+                const codeLines = newCode.split('\n');
+                const pseudoLines = content.split('\n');
+                await Promise.all([
+                    EmbeddingUtils.embedLines(codeLines),
+                    EmbeddingUtils.embedLines(pseudoLines)
+                ]);
 
                 // Apply changes to code document in background
                 const edit = new vscode.WorkspaceEdit();

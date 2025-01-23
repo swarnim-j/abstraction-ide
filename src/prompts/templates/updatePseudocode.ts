@@ -4,154 +4,396 @@ export const updatePseudocodeTemplate: PromptTemplate = {
     systemPrompt: `You are a pseudocode updater that outputs changes as unified diff hunks. Follow these rules exactly:
 
 CRITICAL RULES:
-1. First analyze ALL required changes in the pseudocode
+1. First analyze ALL required changes in the natural-language pseudocode
 2. Group related changes that should be made together
 3. Create hunks (starting with @@) for each logical group of changes
 4. Each line within a hunk must start with:
-   - space ( ) for STABLE context lines (function boundaries, comments, truly unchanged code)
+   - space ( ) for STABLE context lines (function boundaries, structural markers)
    - minus (-) for removed lines
    - plus (+) for added lines
 5. Include 2-3 context lines around changes, using only truly stable lines
-6. Use ONLY these keywords:
-   - function/class/method for definitions
-   - if/else/end if for conditionals
-   - for/while/end loop for loops
-   - try/catch/end try for error handling
-   - return for return statements
+6. Maintain natural language flow while showing precise changes
 7. NEVER include:
    - Line numbers in @@ headers
    - File headers (---, +++)
    - Markdown blocks
+   - Technical syntax symbols
    - Any explanatory text
 
 EXAMPLES OF GOOD HUNKS:
 
-1. Simple value change with function context:
+1. Value change with flow context:
 @@
- function calculateTotal with items:
--    set price to 10
-+    set price to 15
-     return price times length of items
+ CalculateTotal(items):
+-    Base price set to 10
++    Base price set to 15
+     Return price multiplied by item count
 
-2. Multiple related changes in one hunk:
+2. Structural modification:
 @@
- class ShoppingCart:
-     initialize empty items list
--    initialize discount to 0
+ ShoppingCart class:
+     Maintain items list
+-    Track single discount percentage
 -    
--    method applyDiscount with percent:
--        set discount to percent
-+    initialize discounts list
+-    Apply discount percentage:
+-        Override current discount
++    Track multiple discount offers
 +    
-+    method applyDiscount with discount:
-+        add discount to discounts list
-     end method
++    Apply new discount:
++        Add to active discounts
+     End method
 
-3. Error handling changes:
+3. Enhanced validation:
 @@
- function validateUser with data:
--    if name is missing then throw error "Invalid"
-+    if name is missing then
-+        throw error "Name is required"
-+    end if
-+    if email is missing then
-+        throw error "Email is required"
-+    end if
+ ValidateUser(data):
+-    Check name exists
++    Require name field
++    If name missing:
++        Throw "Name required" error
++    End check
++    Require valid email format
+     Check account status
 
-4. Multiple independent changes as separate hunks:
+4. Multi-part changes:
 @@
- class Config:
--    has timeout number
-+    has timeout number or null
-+    has retries number
+ ConfigManager:
+-    Single timeout value
++    Timeout configuration:
++        Default 30 seconds
++        Maximum 120 seconds
++    Enable retry logic flag
 
 @@
- function connect with config:
--    if timeout less than 0 then
-+    if timeout not null and timeout less than 0 then
-         throw error "Invalid timeout"
-     end if
-+    setup retries with config retries`,
+ EstablishConnection(config):
+-    If timeout < 0:
++    If timeout configured and < 0:
+         Throw invalid settings error
+     End check
++    Initialize retry counter
+     Begin handshake`,
 
     examples: [
         {
             user: `Original code:
 function processOrder(order: Order): void {
-    if (!order) return;
-    
-    const total = calculateTotal(order.items);
-    sendConfirmation(order.email);
+    if (!order.items) return;
+    const total = order.items.reduce((sum, i) => sum + i.price, 0);
+    sendEmail(order.email, "Order processed");
 }
 
 Original pseudocode:
-function processOrder with order:
-    if no order then return
-    calculate total from items
-    send confirmation email
+ProcessOrder order:
+    If no items in order → return
+    Calculate total from item prices
+    Send confirmation email
 
 Changes:
-function processOrder with order:
-    validate order has items
-    if no items then
-        throw error "Order must have items"
-    end if
-    
-    calculate total from items
-    apply tax to total
-    send confirmation with total`,
+ProcessOrder order:
+    Validate order has at least 1 item
+    If validation fails → throw error
+    Calculate total including tax
+    Send confirmation with total amount
+    Update inventory levels`,
             assistant: `@@
- function processOrder with order:
--    if no order then return
-+    if order has no items then
-+        throw error "Order must have items"
-+    end if
+ ProcessOrder order:
+-    If no items in order → return
++    Validate order contains items
++    If validation fails:
++        Throw "Empty order" error
++    End check
      
-     calculate total from items
-+    apply tax to total
--    send confirmation email
-+    send confirmation with total`
+-    Calculate total from item prices
+-    Send confirmation email
++    Calculate total including tax
++    Send confirmation with total amount
++    Update inventory levels`
         },
         {
             user: `Original code:
-class DataProcessor {
-    process(data: string[]): number {
-        return data.length;
+class DataAnalyzer {
+    private MAX_SAMPLES = 1000;
+    
+    analyze(samples: number[]) {
+        if (samples.length > MAX_SAMPLES) {
+            throw new Error("Too many samples");
+        }
+        return samples.filter(s => s > 0).length;
     }
 }
 
 Original pseudocode:
-class DataProcessor:
-    method process with data array:
-        return length of data
+DataAnalyzer class:
+    Maximum allowed samples 1000
+    
+    Analyze samples array:
+        If sample count exceeds limit → throw error
+        Count positive values → return
 
 Changes:
-class DataProcessor:
-    private maxSize = 100
-    private validate(data)
-        if length > maxSize then
-            throw error "Too large"
-        end if
+DataAnalyzer class:
+    Configuration:
+        Max samples 1500
+        Min value 0
+        Max value 10000
     
-    method process with data array:
-        validate data
-        filter empty items
-        return length of filtered data`,
+    Analyze samples array:
+        Validate all samples in range
+        Calculate average and positive count
+        Return statistics object`,
             assistant: `@@
- class DataProcessor:
-+    initialize maxSize to 100
-+
-+    method validate with data array:
-+        if length of data greater than maxSize then
-+            throw error "Too large"
-+        end if
-+    end method
-+
-     method process with data array:
--        return length of data
-+        validate data
-+        set filtered to data without empty items
-+        return length of filtered
-     end method`
+ DataAnalyzer class:
+-    Maximum allowed samples 1000
++    Configuration:
++        Max samples 1500
++        Min value 0
++        Max value 10000
+    
+     Analyze samples array:
+-        If sample count exceeds limit → throw error
+-        Count positive values → return
++        Validate all samples in range
++        Calculate average and positive count
++        Return statistics object
+     End method`
+        },
+        {
+            user: `Original pseudocode:
+HandleAPIRequest(request):
+    Check authentication token
+    Parse request body
+    Save to database
+    Return success status
+
+Changes:
+HandleAPIRequest(request):
+    Validate request format
+    Check authentication scope
+    Parse and sanitize input
+    Create audit log entry
+    Save to database
+    Return generated ID and timestamp`,
+            assistant: `@@
+ HandleAPIRequest(request):
++    Validate request format
+     Check authentication token
+-    Parse request body
++    Check authentication scope
++    Parse and sanitize input
++    Create audit log entry
+     Save to database
+-    Return success status
++    Return generated ID and timestamp`
+        },
+        {
+            user: `Original pseudocode:
+ImageProcessor:
+    Convert to JPEG format
+    Resize to 1920 width
+    Apply quality compression
+
+Changes:
+ImageProcessor:
+    Support multiple formats:
+        JPEG
+        PNG
+        WEBP
+    Resize maintaining aspect ratio
+    Optimize compression based on format
+    Add metadata watermark`,
+            assistant: `@@
+ ImageProcessor:
+-    Convert to JPEG format
+-    Resize to 1920 width
+-    Apply quality compression
++    Support multiple formats:
++        JPEG
++        PNG
++        WEBP
++    Resize maintaining aspect ratio
++    Optimize compression based on format
++    Add metadata watermark`
+        },
+        {
+            user: `Original pseudocode:
+DataProcessingPipeline:
+    Read input files
+    Parse CSV format
+    Calculate basic stats
+    Generate report
+
+Changes:
+Add data validation stage
+Support JSON and XML formats
+Implement error recovery
+Add performance metrics tracking`,
+            assistant: `@@
+ DataProcessingPipeline:
+     Read input files
++    Validate file integrity
+-    Parse CSV format
++    Parse supported formats (CSV/JSON/XML)
++    
++    Handle parsing errors:
++        Log error details
++        Skip invalid records
++    
+     Calculate basic stats
++    Track processing time
++    Monitor memory usage
+     Generate report`
+        },
+        {
+            user: `Original pseudocode:
+HandlePayment:
+    Verify card details
+    Process charge
+    Send receipt
+
+Changes:
+Add 3D Secure authentication
+Implement retry logic for failures
+Support multiple currency conversions
+Add fraud detection checks`,
+            assistant: `@@
+ HandlePayment:
+     Verify card details
++    Perform 3D Secure check
++    
++    Attempt processing:
++        Process charge
++        If failure → retry up to 3 times
++    
++    Convert currency if needed
++    Run fraud risk analysis
+     Send receipt
++    Log audit trail`
+        },
+        {
+            user: `Original pseudocode:
+UserSession:
+    Start on login
+    Store basic info
+    Expire after 1 hour
+
+Changes:
+Implement granular session control:
+    Idle timeout after 15 minutes
+    Role-based access tracking
+    Session renewal mechanism
+    Device fingerprinting`,
+            assistant: `@@
+ UserSession:
+     Start on login
+-    Store basic info
++    Track user details and device fingerprint
++    
++    Manage activity:
++        Reset timer on interaction
++        Expire after 15m idle or 1h total
++    
++    Validate access level per role
++    Allow authorized renewal
+     Expire after 1 hour`
+        },
+        {
+            user: `Original pseudocode:
+APIGateway:
+    Route incoming requests
+    Apply rate limiting
+    Return responses
+
+Changes:
+Add request transformation
+Implement circuit breaker pattern
+Support protocol translation
+Add detailed monitoring probes`,
+            assistant: `@@
+ APIGateway:
+     Route incoming requests
++    Transform payload formats
++    
+     Apply rate limiting
++    Monitor failure rates:
++        If high errors → trip circuit
++    
++    Convert between REST/gRPC
++    Collect performance metrics
+     Return responses`
+        },
+        {
+            user: `Original pseudocode:
+ImageRenderer:
+    Load source image
+    Apply filters
+    Save output
+
+Changes:
+Add batch processing
+Implement smart cropping
+Support watermark presets
+Add EXIF metadata preservation`,
+            assistant: `@@
+ ImageRenderer:
+-    Load source image
++    Process multiple images:
++        Load each source
++        Preserve metadata
++    
+     Apply filters
++    Apply content-aware crop
++    Add configured watermark
+-    Save output
++    Save in target formats`
+        },
+        {
+            user: `Original pseudocode:
+CacheSystem:
+    Store key-value pairs
+    Expire after fixed time
+    Return cached values
+
+Changes:
+Implement LRU eviction policy
+Add size-based expiration
+Support tiered storage
+Add cache invalidation webhooks`,
+            assistant: `@@
+ CacheSystem:
+     Store key-value pairs
+-    Expire after fixed time
++    Manage storage:
++        Remove least recently used
++        Expire by size/time
++        Tier hot/cold data
++    
+     Return cached values
++    Send invalidation events
++    Handle manual purge`
+        },
+        {
+            user: `Original pseudocode:
+DataBackup:
+    Copy files to cloud
+    Run weekly schedule
+    Keep 4 versions
+
+Changes:
+Add incremental backups
+Implement encryption-at-rest
+Support multi-cloud targets
+Add integrity verification`,
+            assistant: `@@
+ DataBackup:
+-    Copy files to cloud
++    Perform encrypted backups:
++        Detect changes since last
++        Encrypt before upload
++        Distribute across providers
++    
+     Run weekly schedule
+-    Keep 4 versions
++    Maintain versions with integrity checks
++    Verify restore capability`
         }
     ]
-}; 
+};
