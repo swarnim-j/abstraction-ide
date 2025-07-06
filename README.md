@@ -30,17 +30,3 @@ A VSCode extension that enables developers to view and edit their code at differ
 ## Extension Settings
 
 * `abstractionIde.mistralApiKey`: Your Mistral API key (stored securely)
-
-## Known Issues
-
-- Currently supports only two levels of abstraction (code and pseudocode)
-- Changes in pseudocode view are not yet propagated back to code view
-- Limited caching implementation
-
-## Future Improvements
-
-- Support for multiple levels of abstraction
-- Bidirectional synchronization between views
-- Advanced caching and optimization
-- Syntax highlighting for pseudocode
-- Custom pseudocode formatting options 
