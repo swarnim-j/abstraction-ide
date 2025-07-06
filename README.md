@@ -1,6 +1,6 @@
 # Abstraction IDE
 
-A VSCode extension that enables developers to view and edit their code at different levels of abstraction, powered by LLM-based translation between actual code and pseudocode.
+A VSCode extension that enables developers to view and edit their code at different levels of abstraction, powered by LLM-based translation between actual code and pseudocode in near real-time. Inspired by Michael Truell.
 
 ## Features
 
